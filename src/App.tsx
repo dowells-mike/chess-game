@@ -1,325 +1,242 @@
-// App.tsx
-import { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Chess, Square as ChessSquare, Color, PieceSymbol } from 'chess.js';
 
+// Define types
 type Piece = {
-  type: string;
-  color: 'w' | 'b';
+  type: PieceSymbol;
+  color: Color;
 };
 
-type Square = Piece | null;
-type Board = Square[][];
 type Position = `${number},${number}`;
 
 type Move = {
   startPos: Position;
   endPos: Position;
-  movedPiece: Piece;
+  piece: Piece;
   capturedPiece: Piece | null;
 };
 
-const initialBoard = (): Board => {
-  const board: Board = Array(8)
-    .fill(null)
-    .map(() => Array(8).fill(null));
-
-  // Set up pawns
-  for (let i = 0; i < 8; i++) {
-    board[1][i] = { type: 'P', color: 'b' };
-    board[6][i] = { type: 'P', color: 'w' };
-  }
-
-  // Set up other pieces
-  const backRow = ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
-  for (let i = 0; i < 8; i++) {
-    board[0][i] = { type: backRow[i], color: 'b' };
-    board[7][i] = { type: backRow[i], color: 'w' };
-  }
-
-  return board;
-};
-
-const isValidMove = (
-  board: Board,
-  startPos: Position,
-  endPos: Position,
-  piece: Piece
-): boolean => {
-  const [startRow, startCol] = startPos.split(',').map(Number);
-  const [endRow, endCol] = endPos.split(',').map(Number);
-
-  // Can't capture your own piece
-  if (board[endRow][endCol]?.color === piece.color) return false;
-
-  // Movement validation based on piece type
-  switch (piece.type) {
-    case 'P': { // Pawn
-      const direction = piece.color === 'w' ? -1 : 1;
-      const startingRow = piece.color === 'w' ? 6 : 1;
-
-      // Regular forward move
-      if (startCol === endCol && board[endRow][endCol] === null) {
-        // One square forward
-        if (endRow === startRow + direction) return true;
-
-        // Two squares forward from starting position
-        if (
-          startRow === startingRow &&
-          endRow === startRow + 2 * direction &&
-          board[startRow + direction][startCol] === null
-        ) {
-          return true;
-        }
-      }
-
-      // Diagonal capture
-      if (
-        Math.abs(startCol - endCol) === 1 &&
-        endRow === startRow + direction &&
-        board[endRow][endCol]?.color !== piece.color &&
-        board[endRow][endCol] !== null
-      ) {
-        return true;
-      }
-
-      return false;
-    }
-
-    case 'R': { // Rook
-      // Must move horizontally or vertically
-      if (startRow !== endRow && startCol !== endCol) return false;
-
-      // Check for pieces in the path
-      const rowStep = startRow === endRow ? 0 : endRow > startRow ? 1 : -1;
-      const colStep = startCol === endCol ? 0 : endCol > startCol ? 1 : -1;
-
-      let currentRow = startRow + rowStep;
-      let currentCol = startCol + colStep;
-
-      while (currentRow !== endRow || currentCol !== endCol) {
-        if (board[currentRow][currentCol] !== null) return false;
-        currentRow += rowStep;
-        currentCol += colStep;
-      }
-
-      return true;
-    }
-
-    case 'N': { // Knight
-      const rowDiff = Math.abs(endRow - startRow);
-      const colDiff = Math.abs(endCol - startCol);
-
-      return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2);
-    }
-
-    case 'B': { // Bishop
-      const rowDiff = Math.abs(endRow - startRow);
-      const colDiff = Math.abs(endCol - startCol);
-
-      // Must move diagonally
-      if (rowDiff !== colDiff) return false;
-
-      const rowStep = endRow > startRow ? 1 : -1;
-      const colStep = endCol > startCol ? 1 : -1;
-
-      let currentRow = startRow + rowStep;
-      let currentCol = startCol + colStep;
-
-      while (currentRow !== endRow && currentCol !== endCol) {
-        if (board[currentRow][currentCol] !== null) return false;
-        currentRow += rowStep;
-        currentCol += colStep;
-      }
-
-      return true;
-    }
-
-    case 'Q': { // Queen
-      const rowDiff = Math.abs(endRow - startRow);
-      const colDiff = Math.abs(endCol - startCol);
-
-      // Queen can move like Rook or Bishop
-      if (startRow === endRow || startCol === endCol) {
-        // Rook-like movement
-        const rowStep = startRow === endRow ? 0 : endRow > startRow ? 1 : -1;
-        const colStep = startCol === endCol ? 0 : endCol > startCol ? 1 : -1;
-
-        let currentRow = startRow + rowStep;
-        let currentCol = startCol + colStep;
-
-        while (currentRow !== endRow || currentCol !== endCol) {
-          if (board[currentRow][currentCol] !== null) return false;
-          currentRow += rowStep;
-          currentCol += colStep;
-        }
-
-        return true;
-      } else if (rowDiff === colDiff) {
-        // Bishop-like movement
-        const rowStep = endRow > startRow ? 1 : -1;
-        const colStep = endCol > startCol ? 1 : -1;
-
-        let currentRow = startRow + rowStep;
-        let currentCol = startCol + colStep;
-
-        while (currentRow !== endRow && currentCol !== endCol) {
-          if (board[currentRow][currentCol] !== null) return false;
-          currentRow += rowStep;
-          currentCol += colStep;
-        }
-
-        return true;
-      }
-
-      return false;
-    }
-
-    case 'K': { // King
-      const rowDiff = Math.abs(endRow - startRow);
-      const colDiff = Math.abs(endCol - startCol);
-
-      // King moves one square in any direction
-      if (rowDiff <= 1 && colDiff <= 1) return true;
-
-      return false;
-    }
-
-    default:
-      return false; // Disallow any unrecognized pieces
-  }
-};
-
-const App = () => {
-  const [board, setBoard] = useState<Board>(initialBoard());
-  const [draggedPiece, setDraggedPiece] = useState<Position | null>(null);
-  const [isWhiteTurn, setIsWhiteTurn] = useState(true);
-  const [invalidMove, setInvalidMove] = useState<Position | null>(null);
-
-  // New state variables for selected piece and its legal moves
-  const [selectedPiece, setSelectedPiece] = useState<Position | null>(null);
-  const [legalMoves, setLegalMoves] = useState<Position[]>([]);
-
-  // New state variables for captured pieces
+const App: React.FC = () => {
+  // Initialize chess.js instance
+  const chessRef = useRef<Chess>(new Chess());
+  
+  // State for the board
+  const [board, setBoard] = useState<(Piece | null)[][]>(getInitialBoard());
+  
+  // State for captured pieces
   const [capturedWhite, setCapturedWhite] = useState<Piece[]>([]);
   const [capturedBlack, setCapturedBlack] = useState<Piece[]>([]);
-
-  // New state for move history
+  
+  // State for move history
   const [moveHistory, setMoveHistory] = useState<Move[]>([]);
+  
+  // State for game status
+  const [isCheck, setIsCheck] = useState<boolean>(false);
+  const [isCheckmate, setIsCheckmate] = useState<boolean>(false);
+  const [winner, setWinner] = useState<Color | null>(null);
+  
+  // State for selection and legal moves
+  const [selectedPiece, setSelectedPiece] = useState<Position | null>(null);
+  const [legalMoves, setLegalMoves] = useState<Position[]>([]);
+  
+  // State for drag-and-drop
+  const [draggedPiece, setDraggedPiece] = useState<Position | null>(null);
+  
+  // State for invalid move feedback
+  const [invalidMove, setInvalidMove] = useState<Position | null>(null);
 
-  // Function to get all legal moves for a piece at a given position
-  const getLegalMoves = (pos: Position): Position[] => {
-    const piece = board[parseInt(pos.split(',')[0])][parseInt(pos.split(',')[1])];
-    if (!piece) return [];
-
-    const moves: Position[] = [];
-
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        const targetPos = `${row},${col}` as Position;
-        if (isValidMove(board, pos, targetPos, piece)) {
-          moves.push(targetPos);
+  // Initialize board from chess.js state
+  function getInitialBoard(): (Piece | null)[][] {
+    const board = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 8; j++) {
+        const square = `${String.fromCharCode(97 + j)}${8 - i}` as ChessSquare;
+        const piece = chessRef.current.get(square);
+        if (piece) {
+          board[i][j] = {
+            type: piece.type,
+            color: piece.color
+          };
         }
       }
     }
+    return board;
+  }
 
-    return moves;
-  };
+  // Initialize board on component mount
+  useEffect(() => {
+    updateBoard();
+  }, []);
 
-  // Function to execute a move from startPos to endPos
-  const executeMove = (startPos: Position, endPos: Position) => {
-    const [startRow, startCol] = startPos.split(',').map(Number);
-    const [endRow, endCol] = endPos.split(',').map(Number);
-    const piece = board[startRow][startCol];
-    const targetPiece = board[endRow][endCol];
-    
-    if (piece && isValidMove(board, startPos, endPos, piece)) {
-      const newBoard = board.map(row => [...row]);
-      newBoard[endRow][endCol] = piece;
-      newBoard[startRow][startCol] = null;
-      
-      setBoard(newBoard);
-      setIsWhiteTurn(!isWhiteTurn);
-      
-      // Handle captured pieces
-      if (targetPiece) {
-        if (targetPiece.color === 'w') {
-          setCapturedWhite(prev => [...prev, targetPiece]);
-        } else {
-          setCapturedBlack(prev => [...prev, targetPiece]);
+  // Function to update board from chess.js
+  const updateBoard = () => {
+    const newBoard = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 8; j++) {
+        const square = `${String.fromCharCode(97 + j)}${8 - i}` as ChessSquare;
+        const piece = chessRef.current.get(square);
+        if (piece) {
+          newBoard[i][j] = {
+            type: piece.type,
+            color: piece.color
+          };
         }
       }
-      
-      // Store move in history
+    }
+    setBoard(newBoard);
+  };
+
+  // Convert between our position format and chess.js square format
+  const positionToSquare = (position: Position): ChessSquare => {
+    const [row, col] = position.split(',').map(Number);
+    const file = String.fromCharCode(97 + col);
+    const rank = 8 - row;
+    return `${file}${rank}` as ChessSquare;
+  };
+
+  const squareToPosition = (square: ChessSquare): Position => {
+    const file = square.charAt(0);
+    const rank = parseInt(square.charAt(1));
+    const col = file.charCodeAt(0) - 97;
+    const row = 8 - rank;
+    return `${row},${col}` as Position;
+  };
+
+  // Get legal moves for a piece
+  const getLegalMoves = (pos: Position): Position[] => {
+    const square = positionToSquare(pos);
+    const moves = chessRef.current.moves({ square, verbose: true });
+    return moves.map(move => squareToPosition(move.to));
+  };
+
+  // Execute a move
+  const executeMove = (from: Position, to: Position) => {
+    const fromSquare = positionToSquare(from);
+    const toSquare = positionToSquare(to);
+    const piece = chessRef.current.get(fromSquare);
+
+    try {
+      const moveResult = chessRef.current.move({
+        from: fromSquare,
+        to: toSquare,
+        promotion: 'q' // Always promote to queen for simplicity
+      });
+
+      if (!moveResult) {
+        setInvalidMove(to);
+        setTimeout(() => setInvalidMove(null), 500);
+        return;
+      }
+
+      // Update board
+      updateBoard();
+
+      // Handle captured piece
+      if (moveResult.captured) {
+        const capturedPiece: Piece = {
+          type: moveResult.captured,
+          color: moveResult.color === 'w' ? 'b' : 'w'
+        };
+        if (capturedPiece.color === 'w') {
+          setCapturedWhite(prev => [...prev, capturedPiece]);
+        } else {
+          setCapturedBlack(prev => [...prev, capturedPiece]);
+        }
+      }
+
+      // Update move history
       const move: Move = {
-        startPos,
-        endPos,
-        movedPiece: piece,
-        capturedPiece: targetPiece ? targetPiece : null,
+        startPos: from,
+        endPos: to,
+        piece: {
+          type: moveResult.piece,
+          color: moveResult.color
+        },
+        capturedPiece: moveResult.captured ? {
+          type: moveResult.captured,
+          color: moveResult.color === 'w' ? 'b' : 'w'
+        } : null
       };
       setMoveHistory(prev => [...prev, move]);
-      
-      // Clear selection after move
+
+      // Update game status
+      setIsCheck(chessRef.current.isCheck());
+      setIsCheckmate(chessRef.current.isCheckmate());
+      if (chessRef.current.isCheckmate()) {
+        setWinner(moveResult.color);
+      }
+
+      // Clear selection
       setSelectedPiece(null);
       setLegalMoves([]);
-    } else {
-      // Invalid move attempt via click
-      setInvalidMove(endPos);
+    } catch (error) {
+      setInvalidMove(to);
       setTimeout(() => setInvalidMove(null), 500);
     }
   };
 
-  // Function to handle undoing the last move
+  // Handle undoing a move
   const handleUndo = () => {
-    if (moveHistory.length === 0) return; // No moves to undo
-    
+    if (moveHistory.length === 0) return;
+
     const lastMove = moveHistory[moveHistory.length - 1];
-    const { startPos, endPos, movedPiece, capturedPiece } = lastMove;
+    chessRef.current.undo();
     
-    const [startRow, startCol] = startPos.split(',').map(Number);
-    const [endRow, endCol] = endPos.split(',').map(Number);
-    
-    const newBoard = board.map(row => [...row]);
-    
-    // Move the piece back to its original position
-    newBoard[startRow][startCol] = movedPiece;
-    
-    // Restore the captured piece (if any)
-    newBoard[endRow][endCol] = capturedPiece;
-    
-    setBoard(newBoard);
-    
-    // Remove the last captured piece from the captured lists
-    if (capturedPiece) {
-      if (capturedPiece.color === 'w') {
+    // Update board
+    updateBoard();
+
+    // Remove last move from history
+    setMoveHistory(prev => prev.slice(0, -1));
+
+    // Handle captured pieces
+    if (lastMove.capturedPiece) {
+      if (lastMove.capturedPiece.color === 'w') {
         setCapturedWhite(prev => prev.slice(0, -1));
       } else {
         setCapturedBlack(prev => prev.slice(0, -1));
       }
     }
-    
-    // Remove the last move from history
-    setMoveHistory(prev => prev.slice(0, -1));
-    
-    // Toggle the turn back
-    setIsWhiteTurn(!isWhiteTurn);
-    
-    // Clear any selection and highlights
+
+    // Update game status
+    setIsCheck(chessRef.current.isCheck());
+    setIsCheckmate(chessRef.current.isCheckmate());
+    if (!chessRef.current.isCheckmate()) {
+      setWinner(null);
+    }
+
+    // Clear selection
     setSelectedPiece(null);
     setLegalMoves([]);
   };
 
-  // Update handleDragStart to set selectedPiece and legalMoves
-  const handleDragStart = (e: React.DragEvent, position: Position) => {
-    const [row, col] = position.split(',').map(Number);
-    const piece = board[row][col];
+  // Click handler
+  const handleClick = (position: Position) => {
+    const square = positionToSquare(position);
+    const piece = chessRef.current.get(square);
 
-    if (
-      piece &&
-      ((piece.color === 'w' && isWhiteTurn) ||
-        (piece.color === 'b' && !isWhiteTurn))
-    ) {
+    if (selectedPiece) {
+      executeMove(selectedPiece, position);
+      return;
+    }
+
+    if (piece && piece.color === chessRef.current.turn()) {
+      setSelectedPiece(position);
+      setLegalMoves(getLegalMoves(position));
+    } else {
+      setSelectedPiece(null);
+      setLegalMoves([]);
+    }
+  };
+
+  // Drag handlers
+  const handleDragStart = (e: React.DragEvent, position: Position) => {
+    const square = positionToSquare(position);
+    const piece = chessRef.current.get(square);
+
+    if (piece && piece.color === chessRef.current.turn()) {
       setDraggedPiece(position);
-      setSelectedPiece(position); // Set the selected piece
-      setLegalMoves(getLegalMoves(position)); // Calculate legal moves
+      setSelectedPiece(position);
+      setLegalMoves(getLegalMoves(position));
 
       const dragImage = e.currentTarget.cloneNode(true) as HTMLElement;
       dragImage.style.opacity = '0.5';
@@ -331,62 +248,11 @@ const App = () => {
     }
   };
 
-  // Handle click to select a piece or move to a legal square
-  const handleClick = (position: Position) => {
-    const [row, col] = position.split(',').map(Number);
-    const piece = board[row][col];
-
-    if (selectedPiece) {
-      // If the clicked position is a legal move, execute the move
-      if (legalMoves.includes(position)) {
-        executeMove(selectedPiece, position);
-        return;
-      }
-
-      // If clicking on another piece of the same color, change selection
-      if (
-        piece &&
-        ((piece.color === 'w' && isWhiteTurn) ||
-          (piece.color === 'b' && !isWhiteTurn))
-      ) {
-        setSelectedPiece(position);
-        setLegalMoves(getLegalMoves(position));
-        return;
-      }
-
-      // Clicking on an invalid square or opponent's piece clears selection
-      setSelectedPiece(null);
-      setLegalMoves([]);
-    } else {
-      // No piece is currently selected
-      if (
-        piece &&
-        ((piece.color === 'w' && isWhiteTurn) ||
-          (piece.color === 'b' && !isWhiteTurn))
-      ) {
-        setSelectedPiece(position);
-        setLegalMoves(getLegalMoves(position));
-      }
-    }
-  };
-
-  // Handle dropping a piece via drag-and-drop
-  const handleDrop = (e: React.DragEvent, dropPosition: Position) => {
+  const handleDrop = (e: React.DragEvent, position: Position) => {
     e.preventDefault();
-
     if (!draggedPiece) return;
 
-    const [startRow, startCol] = draggedPiece.split(',').map(Number);
-    const piece = board[startRow][startCol];
-
-    if (piece && isValidMove(board, draggedPiece, dropPosition, piece)) {
-      executeMove(draggedPiece, dropPosition);
-    } else {
-      // Visual feedback for invalid move
-      setInvalidMove(dropPosition);
-      setTimeout(() => setInvalidMove(null), 500);
-    }
-
+    executeMove(draggedPiece, position);
     setDraggedPiece(null);
   };
 
@@ -398,29 +264,27 @@ const App = () => {
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
       {/* Captured Pieces Display */}
       <div className="flex mb-4">
-        {/* Captured White Pieces */}
         <div className="mr-8">
           <h2 className="text-lg font-semibold mb-2">Captured White Pieces:</h2>
           <div className="flex flex-wrap">
             {capturedWhite.map((piece, index) => (
               <img
                 key={`w-capture-${index}`}
-                src={`/${piece.color}${piece.type}.svg`}
+                src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
                 alt={`${piece.color}${piece.type}`}
                 className="w-8 h-8 mr-1 mb-1"
               />
             ))}
           </div>
         </div>
-        
-        {/* Captured Black Pieces */}
+
         <div>
           <h2 className="text-lg font-semibold mb-2">Captured Black Pieces:</h2>
           <div className="flex flex-wrap">
             {capturedBlack.map((piece, index) => (
               <img
                 key={`b-capture-${index}`}
-                src={`/${piece.color}${piece.type}.svg`}
+                src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
                 alt={`${piece.color}${piece.type}`}
                 className="w-8 h-8 mr-1 mb-1"
               />
@@ -428,7 +292,7 @@ const App = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Chessboard */}
       <div className="grid grid-cols-8 gap-0 border-2 border-gray-800">
         {board.map((row, rowIndex) =>
@@ -446,16 +310,16 @@ const App = () => {
                   ${isBlackSquare ? 'bg-gray-600' : 'bg-gray-200'}
                   ${draggedPiece === position ? 'opacity-50' : ''}
                   ${isInvalid ? 'bg-red-400' : ''}
-                  ${isHighlighted ? 'bg-green-400 bg-opacity-25' : ''} {/* Reduced opacity */}
+                  ${isHighlighted ? 'bg-green-400 bg-opacity-25' : ''}
                   ${isSelected ? 'border-2 border-blue-500' : ''}
                 `}
                 onDrop={e => handleDrop(e, position)}
                 onDragOver={handleDragOver}
-                onClick={() => handleClick(position)} // Click handler for click-to-move
+                onClick={() => handleClick(position)}
               >
                 {piece && (
                   <img
-                    src={`/${piece.color}${piece.type}.svg`}
+                    src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
                     alt={`${piece.color}${piece.type}`}
                     className="w-12 h-12 cursor-grab"
                     draggable
@@ -467,25 +331,37 @@ const App = () => {
           })
         )}
       </div>
-      
+
       {/* Turn Indicator and Undo Button */}
       <div className="mt-4 flex items-center">
         <div className="text-xl font-bold mr-4">
-          {isWhiteTurn ? "White's turn" : "Black's turn"}
+          {chessRef.current.turn() === 'w' ? "White's turn" : "Black's turn"}
         </div>
-        
-        {/* Undo Button */}
+
         <button
           onClick={handleUndo}
           className={`flex items-center bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 focus:outline-none ${
             moveHistory.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
           }`}
-          disabled={moveHistory.length === 0} // Disable if no moves to undo
+          disabled={moveHistory.length === 0}
           title="Undo Last Move"
         >
           ↺ Undo
         </button>
       </div>
+
+      {/* Notifications */}
+      {isCheck && !isCheckmate && (
+        <div className="mt-4 text-red-600 font-semibold">
+          {chessRef.current.turn() === 'w' ? "Black is in Check!" : "White is in Check!"}
+        </div>
+      )}
+
+      {isCheckmate && winner && (
+        <div className="mt-4 text-red-800 font-bold text-2xl">
+          {winner === 'w' ? "White Wins by Checkmate!" : "Black Wins by Checkmate!"}
+        </div>
+      )}
     </div>
   );
 };
