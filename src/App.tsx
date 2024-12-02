@@ -316,6 +316,7 @@ const App: React.FC = () => {
             const isValidTarget = selectedPos && isValidMove(selectedPos, pos);
             const isDark = (rowIndex + colIndex) % 2 === 1;
             const isUnderAttack = piece && piece.color === turn && isSquareUnderAttack(pos, turn === 'w' ? 'b' : 'w');
+            const isAttackableBySelected = selectedPos && piece && piece.color !== turn && isValidMove(selectedPos, pos);
 
             return (
               <div
@@ -323,8 +324,9 @@ const App: React.FC = () => {
                 className={`w-16 h-16 flex items-center justify-center
                   ${isDark ? 'bg-gray-600' : 'bg-gray-200'}
                   ${isSelected ? 'bg-blue-400' : ''}
-                  ${isValidTarget ? 'bg-green-400' : ''}
+                  ${isValidTarget && !isAttackableBySelected ? 'bg-green-400' : ''}
                   ${isUnderAttack ? 'bg-red-400' : ''}
+                  ${isAttackableBySelected ? 'bg-red-600' : ''}
                   cursor-pointer
                 `}
                 onClick={() => handleSquareClick(pos)}
