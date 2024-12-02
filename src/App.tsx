@@ -1,4 +1,24 @@
-import React, { useState, useRef } from 'react';
+import React, { useState} from 'react';
+import { RotateCcw } from 'lucide-react';
+import * as SwitchPrimitives from "@radix-ui/react-switch";
+
+// Switch component implementation
+const Switch = React.forwardRef<
+  React.ElementRef<typeof SwitchPrimitives.Root>,
+  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
+>(({ className, ...props }, ref) => (
+  <SwitchPrimitives.Root
+    className="peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input bg-gray-200 data-[state=checked]:bg-blue-600"
+    {...props}
+    ref={ref}
+  >
+    <SwitchPrimitives.Thumb
+      className="pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0"
+    />
+  </SwitchPrimitives.Root>
+));
+Switch.displayName = SwitchPrimitives.Root.displayName;
+
 
 type Color = 'w' | 'b';
 type PieceType = 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
@@ -63,6 +83,7 @@ const App: React.FC = () => {
   const [moveHistory, setMoveHistory] = useState<Move[]>([]);
   const [isCheck, setIsCheck] = useState(false);
   const [isCheckmate, setIsCheckmate] = useState(false);
+  const [showThreats, setShowThreats] = useState(false);
 
   const getPieceMoves = (pos: Position, piece: Piece): Position[] => {
     const [row, col] = pos.split(',').map(Number);
@@ -276,86 +297,113 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-      {/* Captured Pieces */}
-      <div className="flex justify-between w-96 mb-4">
-        <div>
-          <h3 className="text-sm font-semibold mb-1">Captured White:</h3>
-          <div className="flex flex-wrap gap-1">
-            {capturedPieces.w.map((piece, i) => (
-              <img
-                key={i}
-                src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
-                alt={`${piece.color}${piece.type}`}
-                className="w-6 h-6"
-              />
-            ))}
+    <div className="flex items-center justify-center gap-8 min-h-screen bg-gray-100">
+      <div>
+        {/* Captured Pieces */}
+        <div className="flex justify-between w-96 mb-4">
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Captured White:</h3>
+            <div className="flex flex-wrap gap-1">
+              {capturedPieces.w.map((piece, i) => (
+                <img
+                  key={i}
+                  src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
+                  alt={`${piece.color}${piece.type}`}
+                  className="w-6 h-6"
+                />
+              ))}
+            </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Captured Black:</h3>
+            <div className="flex flex-wrap gap-1">
+              {capturedPieces.b.map((piece, i) => (
+                <img
+                  key={i}
+                  src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
+                  alt={`${piece.color}${piece.type}`}
+                  className="w-6 h-6"
+                />
+              ))}
+            </div>
           </div>
         </div>
-        <div>
-          <h3 className="text-sm font-semibold mb-1">Captured Black:</h3>
-          <div className="flex flex-wrap gap-1">
-            {capturedPieces.b.map((piece, i) => (
-              <img
-                key={i}
-                src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
-                alt={`${piece.color}${piece.type}`}
-                className="w-6 h-6"
-              />
-            ))}
-          </div>
+
+        {/* Board */}
+        <div className="grid grid-cols-8 gap-0 border-2 border-gray-800">
+          {board.map((row, rowIndex) =>
+            row.map((piece, colIndex) => {
+              const pos = `${rowIndex},${colIndex}` as Position;
+              const isSelected = selectedPos === pos;
+              const isValidTarget = selectedPos && isValidMove(selectedPos, pos);
+              const isDark = (rowIndex + colIndex) % 2 === 1;
+              const isUnderAttack = showThreats && piece && piece.color === turn && 
+                isSquareUnderAttack(pos, turn === 'w' ? 'b' : 'w');
+              const isAttackableBySelected = selectedPos && piece && 
+                piece.color !== turn && isValidMove(selectedPos, pos);
+
+              return (
+                <div
+                  key={pos}
+                  className={`w-16 h-16 flex items-center justify-center
+                    ${isDark ? 'bg-gray-600' : 'bg-gray-200'}
+                    ${isSelected ? 'bg-blue-400' : ''}
+                    ${isValidTarget && !isAttackableBySelected ? 'bg-green-400' : ''}
+                    ${isUnderAttack ? 'bg-red-400' : ''}
+                    ${isAttackableBySelected ? 'bg-red-600' : ''}
+                    cursor-pointer
+                  `}
+                  onClick={() => handleSquareClick(pos)}
+                >
+                  {piece && (
+                    <img
+                      src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
+                      alt={`${piece.color}${piece.type}`}
+                      className="w-12 h-12"
+                    />
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
-      {/* Board */}
-      <div className="grid grid-cols-8 gap-0 border-2 border-gray-800">
-        {board.map((row, rowIndex) =>
-          row.map((piece, colIndex) => {
-            const pos = `${rowIndex},${colIndex}` as Position;
-            const isSelected = selectedPos === pos;
-            const isValidTarget = selectedPos && isValidMove(selectedPos, pos);
-            const isDark = (rowIndex + colIndex) % 2 === 1;
-            const isUnderAttack = piece && piece.color === turn && isSquareUnderAttack(pos, turn === 'w' ? 'b' : 'w');
-            const isAttackableBySelected = selectedPos && piece && piece.color !== turn && isValidMove(selectedPos, pos);
+      {/* Side Panel */}
+      <div className="w-64 bg-white bg-opacity-80 rounded-xl shadow-lg backdrop-blur-sm p-4">
+        <div className="space-y-4">
+          {/* Player Sections */}
+          <div className={`p-4 rounded-lg transition-all duration-200 ${turn === 'b' ? 'bg-black/10 scale-105' : ''}`}>
+            <h2 className="text-lg font-semibold mb-2">Black Player</h2>
+          </div>
+          
+          <div className={`p-4 rounded-lg transition-all duration-200 ${turn === 'w' ? 'bg-black/10 scale-105' : ''}`}>
+            <h2 className="text-lg font-semibold mb-2">White Player</h2>
+          </div>
 
-            return (
-              <div
-                key={pos}
-                className={`w-16 h-16 flex items-center justify-center
-                  ${isDark ? 'bg-gray-600' : 'bg-gray-200'}
-                  ${isSelected ? 'bg-blue-400' : ''}
-                  ${isValidTarget && !isAttackableBySelected ? 'bg-green-400' : ''}
-                  ${isUnderAttack ? 'bg-red-400' : ''}
-                  ${isAttackableBySelected ? 'bg-red-600' : ''}
-                  cursor-pointer
-                `}
-                onClick={() => handleSquareClick(pos)}
-              >
-                {piece && (
-                  <img
-                    src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
-                    alt={`${piece.color}${piece.type}`}
-                    className="w-12 h-12"
-                  />
-                )}
-              </div>
-            );
-          })
-        )}
-      </div>
+          {/* Controls */}
+          <div className="space-y-4 p-4 border-t border-gray-200">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Show Threats</label>
+              <Switch
+                checked={showThreats}
+                onCheckedChange={setShowThreats}
+              />
+            </div>
 
-      {/* Controls */}
-      <div className="mt-4 flex items-center gap-4">
-        <div className="text-xl font-bold">
-          {turn === 'w' ? "White's turn" : "Black's turn"}
+            <button
+              onClick={handleUndo}
+              disabled={moveHistory.length === 0}
+              className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-600 disabled:opacity-50 disabled:hover:bg-blue-500 transition-colors group relative"
+              title="Undo move"
+            >
+              <RotateCcw className="w-5 h-5" />
+              <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs py-1 px-2 rounded -top-8 left-1/2 transform -translate-x-1/2">
+                Undo move
+              </span>
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleUndo}
-          disabled={moveHistory.length === 0}
-          className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
-        >
-          Undo
-        </button>
       </div>
 
       {/* Promotion Modal */}
