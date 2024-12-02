@@ -157,6 +157,24 @@ const App: React.FC = () => {
     return moves;
   };
 
+  const isSquareUnderAttack = (pos: Position, attackingColor: Color): boolean => {
+    const [targetRow, targetCol] = pos.split(',').map(Number);
+    
+    // Check all squares for attacking pieces
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = board[row][col];
+        if (piece && piece.color === attackingColor) {
+          const moves = getPieceMoves(`${row},${col}`, piece);
+          if (moves.includes(pos)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  };
+
   const handleSquareClick = (pos: Position) => {
     const [row, col] = pos.split(',').map(Number);
     const piece = board[row][col];
@@ -297,6 +315,7 @@ const App: React.FC = () => {
             const isSelected = selectedPos === pos;
             const isValidTarget = selectedPos && isValidMove(selectedPos, pos);
             const isDark = (rowIndex + colIndex) % 2 === 1;
+            const isUnderAttack = piece && piece.color === turn && isSquareUnderAttack(pos, turn === 'w' ? 'b' : 'w');
 
             return (
               <div
@@ -305,6 +324,7 @@ const App: React.FC = () => {
                   ${isDark ? 'bg-gray-600' : 'bg-gray-200'}
                   ${isSelected ? 'bg-blue-400' : ''}
                   ${isValidTarget ? 'bg-green-400' : ''}
+                  ${isUnderAttack ? 'bg-red-400' : ''}
                   cursor-pointer
                 `}
                 onClick={() => handleSquareClick(pos)}
