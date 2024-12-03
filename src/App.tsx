@@ -402,7 +402,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Board */}
-        <div className="grid grid-cols-8 gap-0 border-2 border-gray-800 relative">
+        <div className="grid grid-cols-8 gap-0 border-2 border-gray-800">
           {board.map((row, rowIndex) =>
             row.map((piece, colIndex) => {
               const pos = `${rowIndex},${colIndex}` as Position;
@@ -428,105 +428,12 @@ const App: React.FC = () => {
                   key={pos}
                   className={`w-16 h-16 flex items-center justify-center relative
                     ${isDark ? "bg-gray-600" : "bg-gray-200"}
-                    ${
-                      isSelected
-                        ? "after:absolute after:inset-0 after:bg-green-400 after:bg-opacity-30 after:pointer-events-none"
-                        : ""
-                    }
-                    ${
-                      isValidTarget && !isAttackableBySelected
-                        ? "after:absolute after:inset-0 after:bg-green-400 after:bg-opacity-50 after:pointer-events-none"
-                        : ""
-                    }
-                    ${
-                      isUnderAttack
-                        ? "after:absolute after:inset-0 after:bg-red-400 after:bg-opacity-40 after:pointer-events-none"
-                        : ""
-                    }
-                    ${
-                      isAttackableBySelected
-                        ? "after:absolute after:inset-0 after:bg-red-600 after:bg-opacity-50 after:pointer-events-none"
-                        : ""
-                    }
-                    ${
-                      isLastMoveFrom
-                        ? "after:absolute after:inset-0 after:bg-yellow-200 after:bg-opacity-40 after:pointer-events-none"
-                        : ""
-                    }
-                    ${
-                      isLastMoveTo
-                        ? "after:absolute after:inset-0 after:bg-yellow-400 after:bg-opacity-40 after:pointer-events-none"
-                        : ""
-                    }
-                    cursor-pointer transition-colors duration-300
-                  `}
-                  onClick={() => handleSquareClick(pos)}
-                >
-                  {piece && !animatingPiece && (
-                    <img
-                      src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
-                      alt={`${piece.color}${piece.type}`}
-                      className="w-12 h-12 transition-transform duration-300"
-                    />
-                  )}
-                </div>
-              );
-            })
-          )}
-
-          {/* Animated piece overlay */}
-          {animatingPiece && (
-            <div
-              className="absolute pointer-events-none transition-all duration-300"
-              style={{
-                width: "4rem", // matches w-16
-                height: "4rem", // matches h-16
-                transform: `translate(${
-                  Number(animatingPiece.to.split(",")[1]) * 100
-                }%, ${Number(animatingPiece.to.split(",")[0]) * 100}%)`,
-              }}
-            >
-              <img
-                src={`/${
-                  animatingPiece.piece.color
-                }${animatingPiece.piece.type.toUpperCase()}.svg`}
-                alt={`${animatingPiece.piece.color}${animatingPiece.piece.type}`}
-                className="w-12 h-12"
-              />
-            </div>
-          )}
-          {board.map((row, rowIndex) =>
-            row.map((piece, colIndex) => {
-              const pos = `${rowIndex},${colIndex}` as Position;
-              const isSelected = selectedPos === pos;
-              const isValidTarget =
-                selectedPos && isValidMove(selectedPos, pos);
-              const isDark = (rowIndex + colIndex) % 2 === 1;
-              const isUnderAttack =
-                showThreats &&
-                piece &&
-                piece.color === turn &&
-                isSquareUnderAttack(pos, turn === "w" ? "b" : "w");
-              const isAttackableBySelected =
-                selectedPos &&
-                piece &&
-                piece.color !== turn &&
-                isValidMove(selectedPos, pos);
-
-              return (
-                <div
-                  key={pos}
-                  className={`w-16 h-16 flex items-center justify-center
-                    ${isDark ? "bg-gray-600" : "bg-gray-200"}
-                    ${isSelected ? "bg-blue-400" : ""}
-                    ${
-                      isValidTarget && !isAttackableBySelected
-                        ? "bg-green-400"
-                        : ""
-                    }
+                    ${isLastMoveFrom || isLastMoveTo ? "bg-yellow-200" : ""}
                     ${isUnderAttack ? "bg-red-400" : ""}
+                    ${isSelected ? "bg-blue-400" : ""}
+                    ${isValidTarget && !isAttackableBySelected ? "bg-green-400" : ""}
                     ${isAttackableBySelected ? "bg-red-600" : ""}
-                    cursor-pointer
+                    cursor-pointer transition-colors duration-300
                   `}
                   onClick={() => handleSquareClick(pos)}
                 >
@@ -534,7 +441,7 @@ const App: React.FC = () => {
                     <img
                       src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
                       alt={`${piece.color}${piece.type}`}
-                      className="w-12 h-12"
+                      className={`w-12 h-12 ${isSelected ? 'ring-4 ring-blue-500 ring-opacity-75 rounded-sm' : ''}`}
                     />
                   )}
                 </div>
