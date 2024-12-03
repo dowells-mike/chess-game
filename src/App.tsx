@@ -1,5 +1,5 @@
-import React, { useState} from 'react';
-import { RotateCcw } from 'lucide-react';
+import React, { useState } from "react";
+import { RotateCcw } from "lucide-react";
 import * as SwitchPrimitives from "@radix-ui/react-switch";
 
 // Switch component implementation
@@ -12,16 +12,13 @@ const Switch = React.forwardRef<
     {...props}
     ref={ref}
   >
-    <SwitchPrimitives.Thumb
-      className="pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0"
-    />
+    <SwitchPrimitives.Thumb className="pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0" />
   </SwitchPrimitives.Root>
 ));
 Switch.displayName = SwitchPrimitives.Root.displayName;
 
-
-type Color = 'w' | 'b';
-type PieceType = 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
+type Color = "w" | "b";
+type PieceType = "p" | "n" | "b" | "r" | "q" | "k";
 type Position = `${number},${number}`;
 
 interface Piece {
@@ -47,30 +44,34 @@ interface PromotionState {
 
 const INITIAL_BOARD: Board = [
   [
-    { type: 'r', color: 'b' },
-    { type: 'n', color: 'b' },
-    { type: 'b', color: 'b' },
-    { type: 'q', color: 'b' },
-    { type: 'k', color: 'b' },
-    { type: 'b', color: 'b' },
-    { type: 'n', color: 'b' },
-    { type: 'r', color: 'b' },
+    { type: "r", color: "b" },
+    { type: "n", color: "b" },
+    { type: "b", color: "b" },
+    { type: "q", color: "b" },
+    { type: "k", color: "b" },
+    { type: "b", color: "b" },
+    { type: "n", color: "b" },
+    { type: "r", color: "b" },
   ],
-  Array(8).fill(null).map(() => ({ type: 'p', color: 'b' })),
+  Array(8)
+    .fill(null)
+    .map(() => ({ type: "p", color: "b" })),
   Array(8).fill(null),
   Array(8).fill(null),
   Array(8).fill(null),
   Array(8).fill(null),
-  Array(8).fill(null).map(() => ({ type: 'p', color: 'w' })),
+  Array(8)
+    .fill(null)
+    .map(() => ({ type: "p", color: "w" })),
   [
-    { type: 'r', color: 'w' },
-    { type: 'n', color: 'w' },
-    { type: 'b', color: 'w' },
-    { type: 'q', color: 'w' },
-    { type: 'k', color: 'w' },
-    { type: 'b', color: 'w' },
-    { type: 'n', color: 'w' },
-    { type: 'r', color: 'w' },
+    { type: "r", color: "w" },
+    { type: "n", color: "w" },
+    { type: "b", color: "w" },
+    { type: "q", color: "w" },
+    { type: "k", color: "w" },
+    { type: "b", color: "w" },
+    { type: "n", color: "w" },
+    { type: "r", color: "w" },
   ],
 ];
 
@@ -78,15 +79,22 @@ const App: React.FC = () => {
   const [board, setBoard] = useState<Board>(INITIAL_BOARD);
   const [turn, setTurn] = useState<Color>('w');
   const [selectedPos, setSelectedPos] = useState<Position | null>(null);
+  const [lastMove, setLastMove] = useState<{ from: Position; to: Position } | null>(null);
   const [capturedPieces, setCapturedPieces] = useState<{ w: Piece[], b: Piece[] }>({ w: [], b: [] });
   const [promotionState, setPromotionState] = useState<PromotionState | null>(null);
   const [moveHistory, setMoveHistory] = useState<Move[]>([]);
   const [isCheck, setIsCheck] = useState(false);
   const [isCheckmate, setIsCheckmate] = useState(false);
   const [showThreats, setShowThreats] = useState(false);
+  const [animatingPiece, setAnimatingPiece] = useState<{
+    piece: Piece;
+    from: Position;
+    to: Position;
+  } | null>(null);
+
 
   const getPieceMoves = (pos: Position, piece: Piece): Position[] => {
-    const [row, col] = pos.split(',').map(Number);
+    const [row, col] = pos.split(",").map(Number);
     const moves: Position[] = [];
 
     const addMove = (r: number, c: number) => {
@@ -99,9 +107,9 @@ const App: React.FC = () => {
     };
 
     switch (piece.type) {
-      case 'p':
-        const direction = piece.color === 'w' ? -1 : 1;
-        const startRow = piece.color === 'w' ? 6 : 1;
+      case "p":
+        const direction = piece.color === "w" ? -1 : 1;
+        const startRow = piece.color === "w" ? 6 : 1;
 
         // Forward move
         if (!board[row + direction]?.[col]) {
@@ -116,7 +124,12 @@ const App: React.FC = () => {
         for (const offset of [-1, 1]) {
           const targetRow = row + direction;
           const targetCol = col + offset;
-          if (targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8) {
+          if (
+            targetRow >= 0 &&
+            targetRow < 8 &&
+            targetCol >= 0 &&
+            targetCol < 8
+          ) {
             const targetPiece = board[targetRow][targetCol];
             if (targetPiece && targetPiece.color !== piece.color) {
               addMove(targetRow, targetCol);
@@ -125,24 +138,50 @@ const App: React.FC = () => {
         }
         break;
 
-      case 'n':
+      case "n":
         const knightMoves = [
-          [-2, -1], [-2, 1], [-1, -2], [-1, 2],
-          [1, -2], [1, 2], [2, -1], [2, 1]
+          [-2, -1],
+          [-2, 1],
+          [-1, -2],
+          [-1, 2],
+          [1, -2],
+          [1, 2],
+          [2, -1],
+          [2, 1],
         ];
         for (const [dr, dc] of knightMoves) {
           addMove(row + dr, col + dc);
         }
         break;
 
-      case 'b':
-      case 'r':
-      case 'q':
-        const directions = piece.type === 'r' 
-          ? [[0, 1], [0, -1], [1, 0], [-1, 0]]
-          : piece.type === 'b'
-          ? [[1, 1], [1, -1], [-1, 1], [-1, -1]]
-          : [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+      case "b":
+      case "r":
+      case "q":
+        const directions =
+          piece.type === "r"
+            ? [
+                [0, 1],
+                [0, -1],
+                [1, 0],
+                [-1, 0],
+              ]
+            : piece.type === "b"
+            ? [
+                [1, 1],
+                [1, -1],
+                [-1, 1],
+                [-1, -1],
+              ]
+            : [
+                [0, 1],
+                [0, -1],
+                [1, 0],
+                [-1, 0],
+                [1, 1],
+                [1, -1],
+                [-1, 1],
+                [-1, -1],
+              ];
 
         for (const [dr, dc] of directions) {
           let r = row + dr;
@@ -163,11 +202,16 @@ const App: React.FC = () => {
         }
         break;
 
-      case 'k':
+      case "k":
         const kingMoves = [
-          [-1, -1], [-1, 0], [-1, 1],
-          [0, -1], [0, 1],
-          [1, -1], [1, 0], [1, 1]
+          [-1, -1],
+          [-1, 0],
+          [-1, 1],
+          [0, -1],
+          [0, 1],
+          [1, -1],
+          [1, 0],
+          [1, 1],
         ];
         for (const [dr, dc] of kingMoves) {
           addMove(row + dr, col + dc);
@@ -178,9 +222,12 @@ const App: React.FC = () => {
     return moves;
   };
 
-  const isSquareUnderAttack = (pos: Position, attackingColor: Color): boolean => {
-    const [targetRow, targetCol] = pos.split(',').map(Number);
-    
+  const isSquareUnderAttack = (
+    pos: Position,
+    attackingColor: Color
+  ): boolean => {
+    const [targetRow, targetCol] = pos.split(",").map(Number);
+
     // Check all squares for attacking pieces
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
@@ -197,13 +244,33 @@ const App: React.FC = () => {
   };
 
   const handleSquareClick = (pos: Position) => {
-    const [row, col] = pos.split(',').map(Number);
+    const [row, col] = pos.split(",").map(Number);
     const piece = board[row][col];
 
     if (selectedPos) {
-      const selectedPiece = board[Number(selectedPos.split(',')[0])][Number(selectedPos.split(',')[1])];
+      const selectedPiece =
+        board[Number(selectedPos.split(",")[0])][
+          Number(selectedPos.split(",")[1])
+        ];
       if (selectedPiece && isValidMove(selectedPos, pos)) {
-        makeMove(selectedPos, pos);
+        const [fromRow, fromCol] = selectedPos.split(",").map(Number);
+        const [toRow, toCol] = pos.split(",").map(Number);
+
+        // Start animation
+        setAnimatingPiece({
+          piece: selectedPiece,
+          from: selectedPos,
+          to: pos,
+        });
+
+        // Set last move for trail highlighting
+        setLastMove({ from: selectedPos, to: pos });
+
+        // Delay the actual move to allow animation to complete
+        setTimeout(() => {
+          makeMove(selectedPos, pos);
+          setAnimatingPiece(null);
+        }, 300); // Match this with CSS transition duration
       }
       setSelectedPos(null);
     } else if (piece && piece.color === turn) {
@@ -212,7 +279,7 @@ const App: React.FC = () => {
   };
 
   const isValidMove = (from: Position, to: Position): boolean => {
-    const [fromRow, fromCol] = from.split(',').map(Number);
+    const [fromRow, fromCol] = from.split(",").map(Number);
     const piece = board[fromRow][fromCol];
     if (!piece || piece.color !== turn) return false;
 
@@ -221,53 +288,56 @@ const App: React.FC = () => {
   };
 
   const makeMove = (from: Position, to: Position) => {
-    const [fromRow, fromCol] = from.split(',').map(Number);
-    const [toRow, toCol] = to.split(',').map(Number);
-    
+    const [fromRow, fromCol] = from.split(",").map(Number);
+    const [toRow, toCol] = to.split(",").map(Number);
+
     const piece = board[fromRow][fromCol];
     const targetPiece = board[toRow][toCol];
 
     if (!piece) return;
 
     // Check for pawn promotion
-    if (piece.type === 'p' && (toRow === 0 || toRow === 7)) {
+    if (piece.type === "p" && (toRow === 0 || toRow === 7)) {
       setPromotionState({ from, to, color: piece.color });
       return;
     }
 
-    const newBoard = board.map(row => [...row]);
+    const newBoard = board.map((row) => [...row]);
     newBoard[toRow][toCol] = { ...piece, hasMoved: true };
     newBoard[fromRow][fromCol] = null;
 
     if (targetPiece) {
-      setCapturedPieces(prev => ({
+      setCapturedPieces((prev) => ({
         ...prev,
-        [targetPiece.color]: [...prev[targetPiece.color], targetPiece]
+        [targetPiece.color]: [...prev[targetPiece.color], targetPiece],
       }));
     }
 
     setBoard(newBoard);
-    setTurn(turn === 'w' ? 'b' : 'w');
-    setMoveHistory(prev => [...prev, {
-      startPos: from,
-      endPos: to,
-      piece,
-      capturedPiece: targetPiece
-    }]);
+    setTurn(turn === "w" ? "b" : "w");
+    setMoveHistory((prev) => [
+      ...prev,
+      {
+        startPos: from,
+        endPos: to,
+        piece,
+        capturedPiece: targetPiece,
+      },
+    ]);
   };
 
   const handlePromotion = (pieceType: PieceType) => {
     if (!promotionState) return;
 
-    const [fromRow, fromCol] = promotionState.from.split(',').map(Number);
-    const [toRow, toCol] = promotionState.to.split(',').map(Number);
-    
-    const newBoard = board.map(row => [...row]);
+    const [fromRow, fromCol] = promotionState.from.split(",").map(Number);
+    const [toRow, toCol] = promotionState.to.split(",").map(Number);
+
+    const newBoard = board.map((row) => [...row]);
     newBoard[toRow][toCol] = { type: pieceType, color: promotionState.color };
     newBoard[fromRow][fromCol] = null;
 
     setBoard(newBoard);
-    setTurn(turn === 'w' ? 'b' : 'w');
+    setTurn(turn === "w" ? "b" : "w");
     setPromotionState(null);
   };
 
@@ -275,23 +345,25 @@ const App: React.FC = () => {
     if (moveHistory.length === 0) return;
 
     const lastMove = moveHistory[moveHistory.length - 1];
-    const [fromRow, fromCol] = lastMove.startPos.split(',').map(Number);
-    const [toRow, toCol] = lastMove.endPos.split(',').map(Number);
+    const [fromRow, fromCol] = lastMove.startPos.split(",").map(Number);
+    const [toRow, toCol] = lastMove.endPos.split(",").map(Number);
 
-    const newBoard = board.map(row => [...row]);
+    const newBoard = board.map((row) => [...row]);
     newBoard[fromRow][fromCol] = lastMove.piece;
     newBoard[toRow][toCol] = lastMove.capturedPiece;
 
     if (lastMove.capturedPiece) {
-      setCapturedPieces(prev => ({
+      setCapturedPieces((prev) => ({
         ...prev,
-        [lastMove.capturedPiece!.color]: prev[lastMove.capturedPiece!.color].slice(0, -1)
+        [lastMove.capturedPiece!.color]: prev[
+          lastMove.capturedPiece!.color
+        ].slice(0, -1),
       }));
     }
 
     setBoard(newBoard);
-    setTurn(turn === 'w' ? 'b' : 'w');
-    setMoveHistory(prev => prev.slice(0, -1));
+    setTurn(turn === "w" ? "b" : "w");
+    setMoveHistory((prev) => prev.slice(0, -1));
     setIsCheck(false);
     setIsCheckmate(false);
   };
@@ -330,27 +402,130 @@ const App: React.FC = () => {
         </div>
 
         {/* Board */}
-        <div className="grid grid-cols-8 gap-0 border-2 border-gray-800">
+        <div className="grid grid-cols-8 gap-0 border-2 border-gray-800 relative">
           {board.map((row, rowIndex) =>
             row.map((piece, colIndex) => {
               const pos = `${rowIndex},${colIndex}` as Position;
               const isSelected = selectedPos === pos;
-              const isValidTarget = selectedPos && isValidMove(selectedPos, pos);
+              const isValidTarget =
+                selectedPos && isValidMove(selectedPos, pos);
               const isDark = (rowIndex + colIndex) % 2 === 1;
-              const isUnderAttack = showThreats && piece && piece.color === turn && 
-                isSquareUnderAttack(pos, turn === 'w' ? 'b' : 'w');
-              const isAttackableBySelected = selectedPos && piece && 
-                piece.color !== turn && isValidMove(selectedPos, pos);
+              const isUnderAttack =
+                showThreats &&
+                piece &&
+                piece.color === turn &&
+                isSquareUnderAttack(pos, turn === "w" ? "b" : "w");
+              const isAttackableBySelected =
+                selectedPos &&
+                piece &&
+                piece.color !== turn &&
+                isValidMove(selectedPos, pos);
+              const isLastMoveFrom = lastMove?.from === pos;
+              const isLastMoveTo = lastMove?.to === pos;
+
+              return (
+                <div
+                  key={pos}
+                  className={`w-16 h-16 flex items-center justify-center relative
+                    ${isDark ? "bg-gray-600" : "bg-gray-200"}
+                    ${
+                      isSelected
+                        ? "after:absolute after:inset-0 after:bg-green-400 after:bg-opacity-30 after:pointer-events-none"
+                        : ""
+                    }
+                    ${
+                      isValidTarget && !isAttackableBySelected
+                        ? "after:absolute after:inset-0 after:bg-green-400 after:bg-opacity-50 after:pointer-events-none"
+                        : ""
+                    }
+                    ${
+                      isUnderAttack
+                        ? "after:absolute after:inset-0 after:bg-red-400 after:bg-opacity-40 after:pointer-events-none"
+                        : ""
+                    }
+                    ${
+                      isAttackableBySelected
+                        ? "after:absolute after:inset-0 after:bg-red-600 after:bg-opacity-50 after:pointer-events-none"
+                        : ""
+                    }
+                    ${
+                      isLastMoveFrom
+                        ? "after:absolute after:inset-0 after:bg-yellow-200 after:bg-opacity-40 after:pointer-events-none"
+                        : ""
+                    }
+                    ${
+                      isLastMoveTo
+                        ? "after:absolute after:inset-0 after:bg-yellow-400 after:bg-opacity-40 after:pointer-events-none"
+                        : ""
+                    }
+                    cursor-pointer transition-colors duration-300
+                  `}
+                  onClick={() => handleSquareClick(pos)}
+                >
+                  {piece && !animatingPiece && (
+                    <img
+                      src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
+                      alt={`${piece.color}${piece.type}`}
+                      className="w-12 h-12 transition-transform duration-300"
+                    />
+                  )}
+                </div>
+              );
+            })
+          )}
+
+          {/* Animated piece overlay */}
+          {animatingPiece && (
+            <div
+              className="absolute pointer-events-none transition-all duration-300"
+              style={{
+                width: "4rem", // matches w-16
+                height: "4rem", // matches h-16
+                transform: `translate(${
+                  Number(animatingPiece.to.split(",")[1]) * 100
+                }%, ${Number(animatingPiece.to.split(",")[0]) * 100}%)`,
+              }}
+            >
+              <img
+                src={`/${
+                  animatingPiece.piece.color
+                }${animatingPiece.piece.type.toUpperCase()}.svg`}
+                alt={`${animatingPiece.piece.color}${animatingPiece.piece.type}`}
+                className="w-12 h-12"
+              />
+            </div>
+          )}
+          {board.map((row, rowIndex) =>
+            row.map((piece, colIndex) => {
+              const pos = `${rowIndex},${colIndex}` as Position;
+              const isSelected = selectedPos === pos;
+              const isValidTarget =
+                selectedPos && isValidMove(selectedPos, pos);
+              const isDark = (rowIndex + colIndex) % 2 === 1;
+              const isUnderAttack =
+                showThreats &&
+                piece &&
+                piece.color === turn &&
+                isSquareUnderAttack(pos, turn === "w" ? "b" : "w");
+              const isAttackableBySelected =
+                selectedPos &&
+                piece &&
+                piece.color !== turn &&
+                isValidMove(selectedPos, pos);
 
               return (
                 <div
                   key={pos}
                   className={`w-16 h-16 flex items-center justify-center
-                    ${isDark ? 'bg-gray-600' : 'bg-gray-200'}
-                    ${isSelected ? 'bg-blue-400' : ''}
-                    ${isValidTarget && !isAttackableBySelected ? 'bg-green-400' : ''}
-                    ${isUnderAttack ? 'bg-red-400' : ''}
-                    ${isAttackableBySelected ? 'bg-red-600' : ''}
+                    ${isDark ? "bg-gray-600" : "bg-gray-200"}
+                    ${isSelected ? "bg-blue-400" : ""}
+                    ${
+                      isValidTarget && !isAttackableBySelected
+                        ? "bg-green-400"
+                        : ""
+                    }
+                    ${isUnderAttack ? "bg-red-400" : ""}
+                    ${isAttackableBySelected ? "bg-red-600" : ""}
                     cursor-pointer
                   `}
                   onClick={() => handleSquareClick(pos)}
@@ -373,11 +548,19 @@ const App: React.FC = () => {
       <div className="w-64 bg-white bg-opacity-80 rounded-xl shadow-lg backdrop-blur-sm p-4">
         <div className="space-y-4">
           {/* Player Sections */}
-          <div className={`p-4 rounded-lg transition-all duration-200 ${turn === 'b' ? 'bg-black/10 scale-105' : ''}`}>
+          <div
+            className={`p-4 rounded-lg transition-all duration-200 ${
+              turn === "b" ? "bg-black/10 scale-105" : ""
+            }`}
+          >
             <h2 className="text-lg font-semibold mb-2">Black Player</h2>
           </div>
-          
-          <div className={`p-4 rounded-lg transition-all duration-200 ${turn === 'w' ? 'bg-black/10 scale-105' : ''}`}>
+
+          <div
+            className={`p-4 rounded-lg transition-all duration-200 ${
+              turn === "w" ? "bg-black/10 scale-105" : ""
+            }`}
+          >
             <h2 className="text-lg font-semibold mb-2">White Player</h2>
           </div>
 
@@ -385,10 +568,7 @@ const App: React.FC = () => {
           <div className="space-y-4 p-4 border-t border-gray-200">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">Show Threats</label>
-              <Switch
-                checked={showThreats}
-                onCheckedChange={setShowThreats}
-              />
+              <Switch checked={showThreats} onCheckedChange={setShowThreats} />
             </div>
 
             <button
@@ -412,7 +592,7 @@ const App: React.FC = () => {
           <div className="bg-white p-4 rounded-lg">
             <h2 className="text-xl font-bold mb-4">Choose promotion piece:</h2>
             <div className="flex gap-4">
-              {(['q', 'r', 'b', 'n'] as PieceType[]).map((type) => (
+              {(["q", "r", "b", "n"] as PieceType[]).map((type) => (
                 <button
                   key={type}
                   onClick={() => handlePromotion(type)}
