@@ -427,7 +427,7 @@ const App: React.FC = () => {
               return (
                 <div
                   key={pos}
-                  className={`w-16 h-16 flex items-center justify-center relative cursor-pointer
+                  className={`w-16 h-16 flex items-center justify-center relative cursor-pointer group
                     ${isDark ? "bg-gray-600" : "bg-gray-200"}
                     ${isLastMoveFrom || isLastMoveTo ? "!bg-yellow-200" : ""}
                     ${isUnderAttack ? "!bg-red-400" : ""}
@@ -445,6 +445,19 @@ const App: React.FC = () => {
                       alt={`${piece.color}${piece.type}`}
                       className="w-12 h-12 pointer-events-none"
                     />
+                  )}
+                  {/* File and rank labels */}
+                  {colIndex === 0 && (
+                    <span className={`absolute left-1 top-1 text-xs font-semibold
+                      ${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
+                      {8 - rowIndex}
+                    </span>
+                  )}
+                  {rowIndex === 7 && (
+                    <span className={`absolute right-1 bottom-1 text-xs font-semibold
+                      ${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
+                      {String.fromCharCode(97 + colIndex)}
+                    </span>
                   )}
                 </div>
               );
