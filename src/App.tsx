@@ -422,18 +422,20 @@ const App: React.FC = () => {
                 isValidMove(selectedPos, pos);
               const isLastMoveFrom = lastMove?.from === pos;
               const isLastMoveTo = lastMove?.to === pos;
+              const isCurrentPlayerPiece = piece && piece.color === turn;
 
               return (
                 <div
                   key={pos}
-                  className={`w-16 h-16 flex items-center justify-center relative
+                  className={`w-16 h-16 flex items-center justify-center relative cursor-pointer
                     ${isDark ? "bg-gray-600" : "bg-gray-200"}
-                    ${isLastMoveFrom || isLastMoveTo ? "bg-yellow-200" : ""}
-                    ${isUnderAttack ? "bg-red-400" : ""}
-                    ${isSelected ? "bg-blue-400" : ""}
-                    ${isValidTarget && !isAttackableBySelected ? "bg-green-400" : ""}
-                    ${isAttackableBySelected ? "bg-red-600" : ""}
-                    cursor-pointer transition-colors duration-300
+                    ${isLastMoveFrom || isLastMoveTo ? "!bg-yellow-200" : ""}
+                    ${isUnderAttack ? "!bg-red-400" : ""}
+                    ${isSelected ? "!bg-blue-400" : ""}
+                    ${isValidTarget && !isAttackableBySelected ? "!bg-green-400" : ""}
+                    ${isAttackableBySelected ? "!bg-red-600" : ""}
+                    ${isCurrentPlayerPiece ? "hover:!bg-blue-300" : ""}
+                    transition-colors duration-300
                   `}
                   onClick={() => handleSquareClick(pos)}
                 >
@@ -441,7 +443,7 @@ const App: React.FC = () => {
                     <img
                       src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
                       alt={`${piece.color}${piece.type}`}
-                      className={`w-12 h-12 ${isSelected ? 'ring-4 ring-blue-500 ring-opacity-75 rounded-sm' : ''}`}
+                      className="w-12 h-12 pointer-events-none"
                     />
                   )}
                 </div>
@@ -451,10 +453,9 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Side Panel */}
+      {/* Rest of the component remains the same */}
       <div className="w-64 bg-white bg-opacity-80 rounded-xl shadow-lg backdrop-blur-sm p-4">
         <div className="space-y-4">
-          {/* Player Sections */}
           <div
             className={`p-4 rounded-lg transition-all duration-200 ${
               turn === "b" ? "bg-black/10 scale-105" : ""
@@ -471,7 +472,6 @@ const App: React.FC = () => {
             <h2 className="text-lg font-semibold mb-2">White Player</h2>
           </div>
 
-          {/* Controls */}
           <div className="space-y-4 p-4 border-t border-gray-200">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">Show Threats</label>
@@ -493,7 +493,6 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Promotion Modal */}
       {promotionState && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-4 rounded-lg">
