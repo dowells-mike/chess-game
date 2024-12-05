@@ -104,6 +104,7 @@ const App: React.FC = () => {
     from: Position;
     to: Position;
   } | null>(null);
+  const [selectedHistoryMove, setSelectedHistoryMove] = useState<Move | null>(null);
 
 
   // Replace the existing getPieceMoves function with this one
@@ -332,6 +333,98 @@ const App: React.FC = () => {
     setIsCheckmate(false);
   };
 
+  const convertMoveToSAN = (move: Move, board: Board, moveHistory: Move[]): string => {
+    const { piece, startPos, endPos, capturedPiece } = move;
+    const [fromRow, fromCol] = startPos.split(',').map(Number);
+    const [toRow, toCol] = endPos.split(',').map(Number);
+    
+    // Convert numeric coordinates to chess notation
+    const fromFile = String.fromCharCode(97 + fromCol);
+    const fromRank = 8 - fromRow;
+    const toFile = String.fromCharCode(97 + toCol);
+    const toRank = 8 - toRow;
+    
+    // Handle special moves
+    switch (piece.type) {
+      case 'k':
+        // Castling
+        if (Math.abs(fromCol - toCol) === 2) {
+          return toCol > fromCol ? 'O-O' : 'O-O-O';
+        }
+        break;
+      
+      case 'p':
+        // En passant
+        if (Math.abs(fromCol - toCol) === 1 && !capturedPiece) {
+          return `${fromFile}x${toFile}${toRank} e.p.`;
+        }
+        
+        // Promotion
+        if (toRow === 0 || toRow === 7) {
+          // Determine promotion piece (you might need to pass this information)
+          const promotionPiece = 'q'; // Default to queen, adjust as needed
+          return `${fromFile}${toRank}=${promotionPiece.toUpperCase()}`;
+        }
+        break;
+    }
+    
+    // Disambiguate moves when multiple pieces of the same type can move to the same square
+    const disambiguateMove = () => {
+      let disambiguator = '';
+      
+      // Find all pieces of the same type and color that can move to the target square
+      const similarPieces = board.flatMap((row, rowIndex) => 
+        row.map((boardPiece, colIndex) => ({
+          piece: boardPiece,
+          pos: `${rowIndex},${colIndex}` as Position
+        }))
+        .filter(({ piece: boardPiece, pos }) => 
+          boardPiece?.type === piece.type && 
+          boardPiece.color === piece.color && 
+          pos !== startPos && 
+          getLegalMoves(pos, boardPiece, board).includes(endPos)
+        )
+      );
+      
+      if (similarPieces.length > 0) {
+        // Disambiguate by file or rank
+        const sameFileConflicts = similarPieces.filter(
+          ({ pos }) => pos.split(',')[1] === fromCol.toString()
+        );
+        const sameRankConflicts = similarPieces.filter(
+          ({ pos }) => pos.split(',')[0] === fromRow.toString()
+        );
+        
+        if (sameFileConflicts.length > 0) {
+          disambiguator = fromRank.toString();
+        } else if (sameRankConflicts.length > 0) {
+          disambiguator = fromFile;
+        } else {
+          disambiguator = fromFile + fromRank;
+        }
+      }
+      
+      return disambiguator;
+    };
+    
+    // Construct the move notation
+    const pieceSymbol = piece.type === 'p' ? '' : piece.type.toUpperCase();
+    const captureSymbol = capturedPiece ? 'x' : '';
+    const disambiguator = piece.type !== 'p' ? disambiguateMove() : '';
+    
+    // Check
+    const boardAfterMove = board.map(row => [...row]);
+    boardAfterMove[toRow][toCol] = { ...piece, hasMoved: true };
+    boardAfterMove[fromRow][fromCol] = null;
+    
+    const isCheck = isInCheck(boardAfterMove, piece.color === 'w' ? 'b' : 'w');
+    const isCheckmate = isInCheckmate(boardAfterMove, piece.color === 'w' ? 'b' : 'w');
+    
+    const checkSymbol = isCheckmate ? '#' : (isCheck ? '+' : '');
+    
+    return `${pieceSymbol}${disambiguator}${captureSymbol}${toFile}${toRank}${checkSymbol}`;
+  };
+
   return (
     <div className="flex items-center justify-center gap-8 min-h-screen bg-gray-100">
       <div>
@@ -462,44 +555,108 @@ const App: React.FC = () => {
   </div>
 )}
 
-      {/* Rest of the component remains the same */}
+      {/* Side Panel */}
       <div className="w-64 bg-white bg-opacity-80 rounded-xl shadow-lg backdrop-blur-sm p-4">
-        <div className="space-y-4">
-          <div
-            className={`p-4 rounded-lg transition-all duration-200 ${
-              turn === "b" ? "bg-black/10 scale-105" : ""
-            }`}
-          >
-            <h2 className="text-lg font-semibold mb-2">Black Player</h2>
-          </div>
+  <div className="space-y-4">
+    <div
+      className={`p-4 rounded-lg transition-all duration-200 ${
+        turn === "b" ? "bg-black/10 scale-105" : ""
+      }`}
+    >
+      <h2 className="text-lg font-semibold mb-2">Black Player</h2>
+    </div>
 
-          <div
-            className={`p-4 rounded-lg transition-all duration-200 ${
-              turn === "w" ? "bg-black/10 scale-105" : ""
-            }`}
-          >
-            <h2 className="text-lg font-semibold mb-2">White Player</h2>
-          </div>
 
-          <div className="space-y-4 p-4 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Show Threats</label>
-              <Switch checked={showThreats} onCheckedChange={setShowThreats} />
-            </div>
+    <div
+      className={`p-4 rounded-lg transition-all duration-200 ${
+        turn === "w" ? "bg-black/10 scale-105" : ""
+      }`}
+    >
+      <h2 className="text-lg font-semibold mb-2">White Player</h2>
+    </div>
 
-            <button
-              onClick={handleUndo}
-              disabled={moveHistory.length === 0}
-              className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-600 disabled:opacity-50 disabled:hover:bg-blue-500 transition-colors group relative"
-              title="Undo move"
-            >
-              <RotateCcw className="w-5 h-5" />
-              <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs py-1 px-2 rounded -top-8 left-1/2 transform -translate-x-1/2">
-                Undo move
-              </span>
-            </button>
-          </div>
+
+    <div className="space-y-4 p-4 border-t border-gray-200">
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium">Show Threats</label>
+        <Switch checked={showThreats} onCheckedChange={setShowThreats} />
+      </div>
+
+
+      <button
+        onClick={handleUndo}
+        disabled={moveHistory.length === 0}
+        className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-600 disabled:opacity-50 disabled:hover:bg-blue-500 transition-colors group relative"
+        title="Undo move"
+      >
+        <RotateCcw className="w-5 h-5" />
+        <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs py-1 px-2 rounded -top-8 left-1/2 transform -translate-x-1/2">
+          Undo move
+        </span>
+      </button>
+    </div>
+
+
+    {/* Move History Section */}
+    {moveHistory.length > 0 && (
+      <div className="border-t border-gray-200 pt-4">
+        <h3 className="text-lg font-semibold mb-2">Move History</h3>
+        <div className="max-h-64 overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="px-2 py-1 text-left">Move</th>
+                <th className="px-2 py-1 text-left">Piece</th>
+              </tr>
+            </thead>
+            <tbody>
+              {moveHistory.map((move, index) => {
+                // Reconstruct the board state up to this move
+                const boardCopy = INITIAL_BOARD.map(row => [...row]);
+                for (let i = 0; i <= index; i++) {
+                  const historicalMove = moveHistory[i];
+                  const [fromRow, fromCol] = historicalMove.startPos.split(',').map(Number);
+                  const [toRow, toCol] = historicalMove.endPos.split(',').map(Number);
+                  
+                  boardCopy[toRow][toCol] = { ...historicalMove.piece, hasMoved: true };
+                  boardCopy[fromRow][fromCol] = null;
+                }
+
+
+                return (
+                  <tr 
+                    key={index} 
+                    className={`cursor-pointer hover:bg-gray-100 ${
+                      selectedHistoryMove === move ? 'bg-blue-100' : ''
+                    }`}
+                    onClick={() => {
+                      setBoard(boardCopy);
+                      setSelectedHistoryMove(move);
+                      setLastMove({
+                        from: move.startPos,
+                        to: move.endPos
+                      });
+                    }}
+                  >
+                    <td className="px-2 py-1">
+                      {convertMoveToSAN(move, boardCopy, moveHistory.slice(0, index))}
+                    </td>
+                    <td className="px-2 py-1">
+                      <img
+                        src={`/${move.piece.color}${move.piece.type.toUpperCase()}.svg`}
+                        alt={`${move.piece.color}${move.piece.type}`}
+                        className="w-5 h-5"
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
+      </div>
+    )}
+  </div>
       </div>
 
       {promotionState && (
