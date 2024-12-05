@@ -18,4 +18,10 @@ type BoardTheme = {
     boardTexture?: string;
 };
 
-export type { Color, PieceType, Position, Piece, Board, BoardTheme };
+type TimeControl = {
+    mode: 'blitz' | 'rapid' | 'classical';
+    initialTime: number;
+    increment: number;
+};
+
+export type { Color, PieceType, Position, Piece, Board, BoardTheme, TimeControl };

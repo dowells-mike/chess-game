@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { Clock } from "lucide-react";
 import { RotateCcw } from "lucide-react";
 import * as SwitchPrimitives from "@radix-ui/react-switch";
 import {
@@ -8,7 +9,7 @@ import {
   wouldBeInCheck,
   findKing
 } from './chess-check-detection';
-import { BoardTheme } from "./types";
+import { BoardTheme, TimeControl} from "./types";
 
 
 // Switch component implementation
@@ -123,6 +124,13 @@ const INITIAL_BOARD: Board = [
   ],
 ];
 
+// Timer modes
+const TIME_CONTROLS: TimeControl[] = [
+  { mode: 'blitz', initialTime: 300, increment: 5 },    // 5 minutes, 5 sec increment
+  { mode: 'rapid', initialTime: 600, increment: 10 },   // 10 minutes, 10 sec increment
+  { mode: 'classical', initialTime: 1800, increment: 30 } // 30 minutes, 30 sec increment
+];
+
 const App: React.FC = () => {
   const [board, setBoard] = useState<Board>(INITIAL_BOARD);
   const [turn, setTurn] = useState<Color>('w');
@@ -141,6 +149,18 @@ const App: React.FC = () => {
   } | null>(null);
   const [selectedHistoryMove, setSelectedHistoryMove] = useState<Move | null>(null);
   const [currentTheme, setCurrentTheme] = useState<BoardTheme>(BOARD_THEMES[0]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [timeControl, setTimeControl] = useState<TimeControl>({
+    mode: 'rapid',
+    initialTime: 600, // 10 minutes
+    increment: 10 // 10 seconds increment
+  });
+
+  const [playerTimes, setPlayerTimes] = useState({
+    w: timeControl.initialTime,
+    b: timeControl.initialTime
+  });
 
 
   // Replace the existing getPieceMoves function with this one
@@ -224,14 +244,16 @@ const App: React.FC = () => {
   const makeMove = (from: Position, to: Position) => {
     const [fromRow, fromCol] = from.split(",").map(Number);
     const [toRow, toCol] = to.split(",").map(Number);
-  
+    
     const piece = board[fromRow][fromCol];
     const targetPiece = board[toRow][toCol];
-  
+    
     if (!piece) return;
-
+  
+  
     const newBoard = board.map((row) => [...row]);
-
+  
+  
     // En passant capture
     if (piece.type === 'p') {
       const direction = piece.color === 'w' ? -1 : 1;
@@ -266,14 +288,17 @@ const App: React.FC = () => {
       }
     }
   
+  
     // Check for pawn promotion
     if (piece.type === "p" && (toRow === 0 || toRow === 7)) {
       setPromotionState({ from, to, color: piece.color });
       return;
     }
   
+  
     newBoard[toRow][toCol] = { ...piece, hasMoved: true };
     newBoard[fromRow][fromCol] = null;
+  
   
     if (targetPiece) {
       setCapturedPieces((prev) => ({
@@ -281,6 +306,7 @@ const App: React.FC = () => {
         [targetPiece.color]: [...prev[targetPiece.color], targetPiece],
       }));
     }
+  
   
     // Update the board first
     setBoard(newBoard);
@@ -292,6 +318,23 @@ const App: React.FC = () => {
     
     setIsCheck(isOpponentInCheck);
     setIsCheckmate(isOpponentInCheckmate);
+    
+    // Add time increment for the current player
+    setPlayerTimes(prev => ({
+      ...prev,
+      [turn]: prev[turn] + timeControl.increment
+    }));
+  
+  
+    // Start timer for the next player
+    if (timerRef.current) clearInterval(timerRef.current);
+    
+    timerRef.current = setInterval(() => {
+      setPlayerTimes(prev => ({
+        ...prev,
+        [nextTurn]: Math.max(0, prev[nextTurn] - 1)
+      }));
+    }, 1000);
     
     // Update turn and move history
     setTurn(nextTurn);
@@ -461,6 +504,66 @@ const App: React.FC = () => {
     return `${pieceSymbol}${disambiguator}${captureSymbol}${toFile}${toRank}${checkSymbol}`;
   };
 
+  // Start the timer when the game begins or a move is made
+  const startTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+
+    timerRef.current = setInterval(() => {
+      setPlayerTimes(prev => ({
+        ...prev,
+        [turn]: Math.max(0, prev[turn] - 1)
+      }));
+    }, 1000);
+  };
+
+  // Stop the timer
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const addTimeIncrement = () => {
+    setPlayerTimes(prev => ({
+      ...prev,
+      [turn]: prev[turn] + timeControl.increment
+    }));
+  };
+
+  // Format time to MM:SS
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Reset timer when starting a new game
+  const resetTimer = () => {
+    stopTimer();
+    setPlayerTimes({
+      w: timeControl.initialTime,
+      b: timeControl.initialTime
+    });
+  };
+
+  // Check for time out
+  useEffect(() => {
+    if (playerTimes.w <= 0) {
+      // Black wins on time
+      stopTimer();
+      // You can add a modal or notification here
+      alert("White ran out of time. Black wins!");
+    }
+    if (playerTimes.b <= 0) {
+      // White wins on time
+      stopTimer();
+      // You can add a modal or notification here
+      alert("Black ran out of time. White wins!");
+    }
+  }, [playerTimes]);
+
   return (
     <div className={`flex items-center justify-center gap-12 min-h-screen ${currentTheme.background}`}>
       <div>
@@ -601,21 +704,87 @@ const App: React.FC = () => {
       {/* Side Panel */}
       <div className="w-80 bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-6">
         <div className="space-y-6">
-          <div
-            className={`p-6 rounded-lg transition-all duration-200 ${
-              turn === "b" ? "bg-black/15 scale-110" : ""
-            }`}
-          >
-            <h2 className="text-2xl font-semibold mb-3">Black Player</h2>
+          {/* Black Player Section */}
+    <div
+      className={`p-4 rounded-lg transition-all duration-200 flex justify-between items-center ${
+        turn === "b" ? "bg-black/15 scale-105" : ""
+      }`}
+    >
+      <h2 className="text-2xl font-semibold">Black Player</h2>
+          <div className="flex items-center space-x-2">
+            <Clock className="w-5 h-5" />
+            <span className="text-xl font-mono font-semibold">
+              {formatTime(playerTimes.b)}
+            </span>
+            </div>
           </div>
   
-          <div
-            className={`p-6 rounded-lg transition-all duration-200 ${
-              turn === "w" ? "bg-black/15 scale-110" : ""
-            }`}
-          >
-            <h2 className="text-2xl font-semibold mb-3">White Player</h2>
-          </div>
+
+
+          {/* White Player Section */}
+    <div
+      className={`p-4 rounded-lg transition-all duration-200 flex justify-between items-center ${
+        turn === "w" ? "bg-black/15 scale-105" : ""
+      }`}
+    >
+      <h2 className="text-2xl font-semibold">White Player</h2>
+      <div className="flex items-center space-x-2">
+        <Clock className="w-5 h-5" />
+        <span className="text-xl font-mono font-semibold">
+          {formatTime(playerTimes.w)}
+        </span>
+      </div>
+    </div>
+
+
+    {/* Time Control Section */}
+    <div className="border-t border-gray-300 pt-4">
+  <div className="flex items-center justify-between mb-4">
+    <label className="text-base font-medium">Time Control</label>
+    <select 
+      value={timeControl.mode}
+      onChange={(e) => {
+        const selected = TIME_CONTROLS.find(tc => tc.mode === e.target.value);
+        if (selected) {
+          // Stop the current timer
+          stopTimer();
+
+
+          // Update time control
+          setTimeControl(selected);
+
+
+          // Reset player times to the new initial time
+          setPlayerTimes({
+            w: selected.initialTime,
+            b: selected.initialTime
+          });
+
+
+          // Optional: Restart the timer if the game is in progress
+          // You might want to add a condition to check if the game has started
+          startTimer();
+        }
+      }}
+      className="px-3 py-2 border rounded text-base"
+    >
+      {TIME_CONTROLS.map(tc => (
+        <option key={tc.mode} value={tc.mode}>
+          {tc.mode.charAt(0).toUpperCase() + tc.mode.slice(1)}
+        </option>
+      ))}
+    </select>
+  </div>
+  <div className="flex items-center justify-between mb-4">
+    <span className="text-sm text-gray-600">
+      Initial Time: {Math.floor(timeControl.initialTime / 60)} min
+    </span>
+    <span className="text-sm text-gray-600">
+      Increment: {timeControl.increment} sec
+    </span>
+  </div>
+</div>
+    
   
           <div className="space-y-6 p-6 border-t border-gray-300">
   
