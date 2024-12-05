@@ -52,14 +52,14 @@ interface PromotionState {
 
 const INITIAL_BOARD: Board = [
   [
-    { type: "r", color: "b" },
-    { type: "n", color: "b" },
-    { type: "b", color: "b" },
-    { type: "q", color: "b" },
-    { type: "k", color: "b" },
-    { type: "b", color: "b" },
-    { type: "n", color: "b" },
-    { type: "r", color: "b" },
+    { type: "r", color: "b", hasMoved: false },
+    { type: "n", color: "b", hasMoved: false },
+    { type: "b", color: "b", hasMoved: false },
+    { type: "q", color: "b", hasMoved: false },
+    { type: "k", color: "b", hasMoved: false },
+    { type: "b", color: "b", hasMoved: false },
+    { type: "n", color: "b", hasMoved: false },
+    { type: "r", color: "b", hasMoved: false },
   ],
   Array(8)
     .fill(null)
@@ -179,6 +179,24 @@ const App: React.FC = () => {
     const targetPiece = board[toRow][toCol];
   
     if (!piece) return;
+
+    const newBoard = board.map((row) => [...row]);
+    
+    // handle castling movement
+    if (piece.type === 'k' && Math.abs(toCol - fromCol) === 2) {
+      // Kingside castling
+      if (toCol === 6) {
+        newBoard[fromRow][5] = newBoard[fromRow][7]; // Move rook
+        newBoard[fromRow][7] = null;
+        newBoard[fromRow][5]!.hasMoved = true;
+      }
+      // Queenside castling
+      else if (toCol === 2) {
+        newBoard[fromRow][3] = newBoard[fromRow][0]; // Move rook
+        newBoard[fromRow][0] = null;
+        newBoard[fromRow][3]!.hasMoved = true;
+      }
+    }
   
     // Check for pawn promotion
     if (piece.type === "p" && (toRow === 0 || toRow === 7)) {
@@ -186,7 +204,6 @@ const App: React.FC = () => {
       return;
     }
   
-    const newBoard = board.map((row) => [...row]);
     newBoard[toRow][toCol] = { ...piece, hasMoved: true };
     newBoard[fromRow][fromCol] = null;
   
@@ -244,8 +261,27 @@ const App: React.FC = () => {
     const [toRow, toCol] = lastMove.endPos.split(",").map(Number);
   
     const newBoard = board.map((row) => [...row]);
-    newBoard[fromRow][fromCol] = lastMove.piece;
+    newBoard[fromRow][fromCol] = { ...lastMove.piece, hasMoved: false };
     newBoard[toRow][toCol] = lastMove.capturedPiece;
+  
+    // Undo castling
+    if (lastMove.piece.type === 'k' && Math.abs(toCol - fromCol) === 2) {
+      if (toCol === 6) { // Kingside
+        newBoard[fromRow][7] = newBoard[fromRow][5];
+        newBoard[fromRow][5] = null;
+        const kingsSideRook = newBoard[fromRow][7];
+        if (kingsSideRook && 'hasMoved' in kingsSideRook) {
+          kingsSideRook.hasMoved = false;
+        }
+      } else if (toCol === 2) { // Queenside
+        newBoard[fromRow][0] = newBoard[fromRow][3];
+        newBoard[fromRow][3] = null;
+        const queensSideRook = newBoard[fromRow][0];
+        if (queensSideRook && 'hasMoved' in queensSideRook) {
+          queensSideRook.hasMoved = false;
+        }
+      }
+    }
   
     if (lastMove.capturedPiece) {
       setCapturedPieces((prev) => ({

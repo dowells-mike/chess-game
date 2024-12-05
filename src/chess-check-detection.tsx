@@ -110,16 +110,43 @@ const simulateMove = (
         }
         break;
   
-      case "k":
-        const kingMoves = [
-          [-1, -1], [-1, 0], [-1, 1],
-          [0, -1], [0, 1],
-          [1, -1], [1, 0], [1, 1]
-        ];
-        for (const [dr, dc] of kingMoves) {
-          addMove(row + dr, col + dc);
-        }
-        break;
+        case "k":
+          // Regular king moves
+          const kingMoves = [
+            [-1, -1], [-1, 0], [-1, 1],
+            [0, -1], [0, 1],
+            [1, -1], [1, 0], [1, 1]
+          ];
+          for (const [dr, dc] of kingMoves) {
+            addMove(row + dr, col + dc);
+          }
+        
+          // Castling moves
+          if (!piece.hasMoved) {
+            // Kingside castling
+            if (
+              board[row][7]?.type === 'r' &&
+              board[row][7]?.color === piece.color &&
+              !board[row][7]?.hasMoved &&
+              !board[row][5] &&
+              !board[row][6]
+            ) {
+              moves.push(`${row},6`);
+            }
+        
+            // Queenside castling
+            if (
+              board[row][0]?.type === 'r' &&
+              board[row][0]?.color === piece.color &&
+              !board[row][0]?.hasMoved &&
+              !board[row][1] &&
+              !board[row][2] &&
+              !board[row][3]
+            ) {
+              moves.push(`${row},2`);
+            }
+          }
+          break;
     }
   
     return moves;
@@ -161,6 +188,30 @@ const simulateMove = (
   // Get all legal moves for a piece (considering check)
   const getLegalMoves = (pos: Position, piece: Piece, board: Board): Position[] => {
     const rawMoves = getRawPieceMoves(pos, piece, board);
+    
+    // For kings, filter out castling moves if the king is in check or would pass through check
+    if (piece.type === 'k') {
+      return rawMoves.filter(move => {
+        const [, toCol] = move.split(",").map(Number);
+        const isCastling = Math.abs(toCol - Number(pos.split(",")[1])) === 2;
+        
+        if (isCastling) {
+          // Don't allow castling if in check
+          if (isInCheck(board, piece.color)) return false;
+          
+          // Check if passing through attacked square
+          const row = Number(pos.split(",")[0]);
+          const direction = toCol === 6 ? 1 : -1;
+          const intermediateCol = Number(pos.split(",")[1]) + direction;
+          if (isPositionUnderAttack(`${row},${intermediateCol}`, piece.color === 'w' ? 'b' : 'w', board)) {
+            return false;
+          }
+        }
+        
+        return !wouldBeInCheck(board, pos, move, piece.color);
+      });
+    }
+    
     return rawMoves.filter(move => !wouldBeInCheck(board, pos, move, piece.color));
   };
   
@@ -174,6 +225,7 @@ const simulateMove = (
       for (let col = 0; col < 8; col++) {
         const piece = board[row][col];
         if (piece && piece.color === attackingColor) {
+          // Pass false for checkCastling to avoid recursion
           const moves = getRawPieceMoves(`${row},${col}`, piece, board);
           if (moves.includes(pos)) {
             return true;
