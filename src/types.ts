@@ -10,4 +10,12 @@ interface Piece {
 
 type Board = (Piece | null)[][];
 
-export type { Color, PieceType, Position, Piece, Board };
+type BoardTheme = {
+    name: string;
+    lightSquare: string;
+    darkSquare: string;
+    background: string;
+    boardTexture?: string;
+};
+
+export type { Color, PieceType, Position, Piece, Board, BoardTheme };
