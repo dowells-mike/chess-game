@@ -1,6 +1,14 @@
 import React, { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import * as SwitchPrimitives from "@radix-ui/react-switch";
+import {
+  getLegalMoves,
+  isInCheck,
+  isInCheckmate,
+  wouldBeInCheck,
+  findKing
+} from './chess-check-detection';
+
 
 // Switch component implementation
 const Switch = React.forwardRef<
@@ -93,133 +101,9 @@ const App: React.FC = () => {
   } | null>(null);
 
 
+  // Replace the existing getPieceMoves function with this one
   const getPieceMoves = (pos: Position, piece: Piece): Position[] => {
-    const [row, col] = pos.split(",").map(Number);
-    const moves: Position[] = [];
-
-    const addMove = (r: number, c: number) => {
-      if (r >= 0 && r < 8 && c >= 0 && c < 8) {
-        const targetPiece = board[r][c];
-        if (!targetPiece || targetPiece.color !== piece.color) {
-          moves.push(`${r},${c}`);
-        }
-      }
-    };
-
-    switch (piece.type) {
-      case "p":
-        const direction = piece.color === "w" ? -1 : 1;
-        const startRow = piece.color === "w" ? 6 : 1;
-
-        // Forward move
-        if (!board[row + direction]?.[col]) {
-          addMove(row + direction, col);
-          // Initial two-square move
-          if (row === startRow && !board[row + direction * 2]?.[col]) {
-            addMove(row + direction * 2, col);
-          }
-        }
-
-        // Captures
-        for (const offset of [-1, 1]) {
-          const targetRow = row + direction;
-          const targetCol = col + offset;
-          if (
-            targetRow >= 0 &&
-            targetRow < 8 &&
-            targetCol >= 0 &&
-            targetCol < 8
-          ) {
-            const targetPiece = board[targetRow][targetCol];
-            if (targetPiece && targetPiece.color !== piece.color) {
-              addMove(targetRow, targetCol);
-            }
-          }
-        }
-        break;
-
-      case "n":
-        const knightMoves = [
-          [-2, -1],
-          [-2, 1],
-          [-1, -2],
-          [-1, 2],
-          [1, -2],
-          [1, 2],
-          [2, -1],
-          [2, 1],
-        ];
-        for (const [dr, dc] of knightMoves) {
-          addMove(row + dr, col + dc);
-        }
-        break;
-
-      case "b":
-      case "r":
-      case "q":
-        const directions =
-          piece.type === "r"
-            ? [
-                [0, 1],
-                [0, -1],
-                [1, 0],
-                [-1, 0],
-              ]
-            : piece.type === "b"
-            ? [
-                [1, 1],
-                [1, -1],
-                [-1, 1],
-                [-1, -1],
-              ]
-            : [
-                [0, 1],
-                [0, -1],
-                [1, 0],
-                [-1, 0],
-                [1, 1],
-                [1, -1],
-                [-1, 1],
-                [-1, -1],
-              ];
-
-        for (const [dr, dc] of directions) {
-          let r = row + dr;
-          let c = col + dc;
-          while (r >= 0 && r < 8 && c >= 0 && c < 8) {
-            const targetPiece = board[r][c];
-            if (!targetPiece) {
-              addMove(r, c);
-            } else {
-              if (targetPiece.color !== piece.color) {
-                addMove(r, c);
-              }
-              break;
-            }
-            r += dr;
-            c += dc;
-          }
-        }
-        break;
-
-      case "k":
-        const kingMoves = [
-          [-1, -1],
-          [-1, 0],
-          [-1, 1],
-          [0, -1],
-          [0, 1],
-          [1, -1],
-          [1, 0],
-          [1, 1],
-        ];
-        for (const [dr, dc] of kingMoves) {
-          addMove(row + dr, col + dc);
-        }
-        break;
-    }
-
-    return moves;
+    return getLegalMoves(pos, piece, board);
   };
 
   const isSquareUnderAttack = (
@@ -290,31 +174,42 @@ const App: React.FC = () => {
   const makeMove = (from: Position, to: Position) => {
     const [fromRow, fromCol] = from.split(",").map(Number);
     const [toRow, toCol] = to.split(",").map(Number);
-
+  
     const piece = board[fromRow][fromCol];
     const targetPiece = board[toRow][toCol];
-
+  
     if (!piece) return;
-
+  
     // Check for pawn promotion
     if (piece.type === "p" && (toRow === 0 || toRow === 7)) {
       setPromotionState({ from, to, color: piece.color });
       return;
     }
-
+  
     const newBoard = board.map((row) => [...row]);
     newBoard[toRow][toCol] = { ...piece, hasMoved: true };
     newBoard[fromRow][fromCol] = null;
-
+  
     if (targetPiece) {
       setCapturedPieces((prev) => ({
         ...prev,
         [targetPiece.color]: [...prev[targetPiece.color], targetPiece],
       }));
     }
-
+  
+    // Update the board first
     setBoard(newBoard);
-    setTurn(turn === "w" ? "b" : "w");
+    
+    // Check if the opponent is in check or checkmate
+    const nextTurn = turn === "w" ? "b" : "w";
+    const isOpponentInCheck = isInCheck(newBoard, nextTurn);
+    const isOpponentInCheckmate = isInCheckmate(newBoard, nextTurn);
+    
+    setIsCheck(isOpponentInCheck);
+    setIsCheckmate(isOpponentInCheckmate);
+    
+    // Update turn and move history
+    setTurn(nextTurn);
     setMoveHistory((prev) => [
       ...prev,
       {
@@ -325,7 +220,7 @@ const App: React.FC = () => {
       },
     ]);
   };
-
+  
   const handlePromotion = (pieceType: PieceType) => {
     if (!promotionState) return;
 
@@ -343,15 +238,15 @@ const App: React.FC = () => {
 
   const handleUndo = () => {
     if (moveHistory.length === 0) return;
-
+  
     const lastMove = moveHistory[moveHistory.length - 1];
     const [fromRow, fromCol] = lastMove.startPos.split(",").map(Number);
     const [toRow, toCol] = lastMove.endPos.split(",").map(Number);
-
+  
     const newBoard = board.map((row) => [...row]);
     newBoard[fromRow][fromCol] = lastMove.piece;
     newBoard[toRow][toCol] = lastMove.capturedPiece;
-
+  
     if (lastMove.capturedPiece) {
       setCapturedPieces((prev) => ({
         ...prev,
@@ -360,11 +255,13 @@ const App: React.FC = () => {
         ].slice(0, -1),
       }));
     }
-
+  
     setBoard(newBoard);
     setTurn(turn === "w" ? "b" : "w");
     setMoveHistory((prev) => prev.slice(0, -1));
-    setIsCheck(false);
+    
+    // Reset check and checkmate state
+    setIsCheck(isInCheck(newBoard, turn === "w" ? "b" : "w"));
     setIsCheckmate(false);
   };
 
@@ -465,6 +362,38 @@ const App: React.FC = () => {
           )}
         </div>
       </div>
+
+      {isCheck && !isCheckmate && (
+  <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+    Check!
+  </div>
+)}
+
+{isCheckmate && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white p-8 rounded-lg shadow-xl">
+      <h2 className="text-3xl font-bold mb-4">Checkmate!</h2>
+      <p className="text-xl mb-6">
+        {turn === "w" ? "Black" : "White"} wins!
+      </p>
+      <button
+        onClick={() => {
+          setBoard(INITIAL_BOARD);
+          setTurn("w");
+          setSelectedPos(null);
+          setLastMove(null);
+          setCapturedPieces({ w: [], b: [] });
+          setMoveHistory([]);
+          setIsCheck(false);
+          setIsCheckmate(false);
+        }}
+        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+      >
+        New Game
+      </button>
+    </div>
+  </div>
+)}
 
       {/* Rest of the component remains the same */}
       <div className="w-64 bg-white bg-opacity-80 rounded-xl shadow-lg backdrop-blur-sm p-4">
