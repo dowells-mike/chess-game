@@ -44,11 +44,16 @@ interface Move {
   capturedPiece: Piece | null;
 }
 
+interface LastMove {
+  from: Position;
+  to: Position;
+}
 interface PromotionState {
   from: Position;
   to: Position;
   color: Color;
 }
+
 
 const INITIAL_BOARD: Board = [
   [
@@ -103,7 +108,15 @@ const App: React.FC = () => {
 
   // Replace the existing getPieceMoves function with this one
   const getPieceMoves = (pos: Position, piece: Piece): Position[] => {
-    return getLegalMoves(pos, piece, board);
+    const lastMove: LastMove | undefined = 
+      moveHistory.length > 0 
+        ? { 
+            from: moveHistory[moveHistory.length - 1].startPos, 
+            to: moveHistory[moveHistory.length - 1].endPos 
+          } 
+        : undefined;
+    
+    return getLegalMoves(pos, piece, board, lastMove);
   };
 
   const isSquareUnderAttack = (
@@ -181,6 +194,24 @@ const App: React.FC = () => {
     if (!piece) return;
 
     const newBoard = board.map((row) => [...row]);
+
+    // En passant capture
+    if (piece.type === 'p') {
+      const direction = piece.color === 'w' ? -1 : 1;
+      if (Math.abs(fromCol - toCol) === 1 && !targetPiece) {
+        // Remove the captured pawn
+        newBoard[toRow - direction][toCol] = null;
+        
+        // Update captured pieces
+        const capturedEnPassantPawn = board[toRow - direction][toCol];
+        if (capturedEnPassantPawn) {
+          setCapturedPieces((prev) => ({
+            ...prev,
+            [capturedEnPassantPawn.color]: [...prev[capturedEnPassantPawn.color], capturedEnPassantPawn],
+          }));
+        }
+      }
+    }
     
     // handle castling movement
     if (piece.type === 'k' && Math.abs(toCol - fromCol) === 2) {

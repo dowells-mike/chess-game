@@ -32,7 +32,7 @@ const simulateMove = (
   };
   
   // Get all valid moves for a piece without considering check
-  const getRawPieceMoves = (pos: Position, piece: Piece, board: Board): Position[] => {
+  const getRawPieceMoves = (pos: Position, piece: Piece, board: Board, lastMove?: { from: Position; to: Position }): Position[] => {
     const [row, col] = pos.split(",").map(Number);
     const moves: Position[] = [];
   
@@ -47,30 +47,50 @@ const simulateMove = (
   
     switch (piece.type) {
       case "p":
-        const direction = piece.color === "w" ? -1 : 1;
-        const startRow = piece.color === "w" ? 6 : 1;
-  
-        // Forward move
-        if (!board[row + direction]?.[col]) {
-          addMove(row + direction, col);
-          // Initial two-square move
-          if (row === startRow && !board[row + direction * 2]?.[col]) {
-            addMove(row + direction * 2, col);
-          }
+      const direction = piece.color === "w" ? -1 : 1;
+      const startRow = piece.color === "w" ? 6 : 1;
+
+
+      // Forward move
+      if (!board[row + direction]?.[col]) {
+        addMove(row + direction, col);
+        // Initial two-square move
+        if (row === startRow && !board[row + direction * 2]?.[col]) {
+          addMove(row + direction * 2, col);
         }
-  
-        // Captures
-        for (const offset of [-1, 1]) {
-          const targetRow = row + direction;
-          const targetCol = col + offset;
-          if (targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8) {
-            const targetPiece = board[targetRow][targetCol];
-            if (targetPiece && targetPiece.color !== piece.color) {
+      }
+
+
+      // Captures
+      for (const offset of [-1, 1]) {
+        const targetRow = row + direction;
+        const targetCol = col + offset;
+        if (targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8) {
+          const targetPiece = board[targetRow][targetCol];
+          
+          // Regular capture
+          if (targetPiece && targetPiece.color !== piece.color) {
+            addMove(targetRow, targetCol);
+          }
+          
+          // En passant
+          if (lastMove) {
+            const [lastFromRow, lastFromCol] = lastMove.from.split(",").map(Number);
+            const [lastToRow, lastToCol] = lastMove.to.split(",").map(Number);
+            
+            // Check if the last move was a two-square pawn move
+            if (
+              board[lastToRow][lastToCol]?.type === 'p' &&
+              Math.abs(lastFromRow - lastToRow) === 2 &&
+              lastToCol === targetCol &&
+              lastToRow === row
+            ) {
               addMove(targetRow, targetCol);
             }
           }
         }
-        break;
+      }
+      break;
   
       case "n":
         const knightMoves = [
@@ -110,43 +130,43 @@ const simulateMove = (
         }
         break;
   
-        case "k":
-          // Regular king moves
-          const kingMoves = [
-            [-1, -1], [-1, 0], [-1, 1],
-            [0, -1], [0, 1],
-            [1, -1], [1, 0], [1, 1]
-          ];
-          for (const [dr, dc] of kingMoves) {
-            addMove(row + dr, col + dc);
-          }
-        
-          // Castling moves
-          if (!piece.hasMoved) {
-            // Kingside castling
-            if (
-              board[row][7]?.type === 'r' &&
-              board[row][7]?.color === piece.color &&
-              !board[row][7]?.hasMoved &&
-              !board[row][5] &&
-              !board[row][6]
-            ) {
-              moves.push(`${row},6`);
-            }
-        
-            // Queenside castling
-            if (
-              board[row][0]?.type === 'r' &&
-              board[row][0]?.color === piece.color &&
-              !board[row][0]?.hasMoved &&
-              !board[row][1] &&
-              !board[row][2] &&
-              !board[row][3]
-            ) {
-              moves.push(`${row},2`);
-            }
-          }
-          break;
+       case "k":
+      // Regular king moves
+      const kingMoves = [
+        [-1, -1], [-1, 0], [-1, 1],
+        [0, -1], [0, 1],
+        [1, -1], [1, 0], [1, 1]
+      ];
+      for (const [dr, dc] of kingMoves) {
+        addMove(row + dr, col + dc);
+      }
+    
+      // Castling moves
+      if (!piece.hasMoved) {
+        // Kingside castling
+        if (
+          board[row][7]?.type === 'r' &&
+          board[row][7]?.color === piece.color &&
+          !board[row][7]?.hasMoved &&
+          !board[row][5] &&
+          !board[row][6]
+        ) {
+          moves.push(`${row},6`);
+        }
+    
+        // Queenside castling
+        if (
+          board[row][0]?.type === 'r' &&
+          board[row][0]?.color === piece.color &&
+          !board[row][0]?.hasMoved &&
+          !board[row][1] &&
+          !board[row][2] &&
+          !board[row][3]
+        ) {
+          moves.push(`${row},2`);
+        }
+      }
+      break;
     }
   
     return moves;
@@ -186,8 +206,13 @@ const simulateMove = (
   };
   
   // Get all legal moves for a piece (considering check)
-  const getLegalMoves = (pos: Position, piece: Piece, board: Board): Position[] => {
-    const rawMoves = getRawPieceMoves(pos, piece, board);
+  const getLegalMoves = (
+    pos: Position, 
+    piece: Piece, 
+    board: Board, 
+    lastMove?: { from: Position; to: Position }
+  ): Position[] => {
+    const rawMoves = getRawPieceMoves(pos, piece, board, lastMove);
     
     // For kings, filter out castling moves if the king is in check or would pass through check
     if (piece.type === 'k') {
@@ -212,6 +237,7 @@ const simulateMove = (
       });
     }
     
+    // Filter out moves that would put the king in check
     return rawMoves.filter(move => !wouldBeInCheck(board, pos, move, piece.color));
   };
   
