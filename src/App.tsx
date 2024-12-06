@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import ChessRulesMenu from './ChessRulesMenu';
-import { Clock } from "lucide-react";
+import { Clock, Settings } from "lucide-react";
 import { RotateCcw } from "lucide-react";
 import * as SwitchPrimitives from "@radix-ui/react-switch";
 import {
@@ -11,6 +11,8 @@ import {
   findKing
 } from './chess-check-detection';
 import { BoardTheme, TimeControl} from "./types";
+import SettingsModal, { SoundSettings } from "./SettingsModal";
+import { useSoundManager } from "./useSoundManager";
 
 
 // Switch component implementation
@@ -152,6 +154,23 @@ const App: React.FC = () => {
   const [currentTheme, setCurrentTheme] = useState<BoardTheme>(BOARD_THEMES[0]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [showRulesMenu, setShowRulesMenu] = useState(false); // New state for rules menu
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [soundSettings, setSoundSettings] = useState<SoundSettings>({
+    masterVolume: 0.5,
+    moveVolume: 0.7,
+    checkVolume: 0.7,
+    musicVolume: 0.3,
+    isMusicEnabled: false,
+    areSoundEffectsEnabled: true
+  });
+
+  // Use the sound manager
+  const { 
+    playMoveSound, 
+    playCheckSound, 
+    playCheckmateSound, 
+    playTurnSwitchSound 
+  } = useSoundManager(soundSettings);
 
   const [timeControl, setTimeControl] = useState<TimeControl>({
     mode: 'rapid',
@@ -252,9 +271,10 @@ const App: React.FC = () => {
     
     if (!piece) return;
   
-  
     const newBoard = board.map((row) => [...row]);
   
+    // Play move sound
+    playMoveSound();
   
     // En passant capture
     if (piece.type === 'p') {
@@ -270,6 +290,10 @@ const App: React.FC = () => {
             ...prev,
             [capturedEnPassantPawn.color]: [...prev[capturedEnPassantPawn.color], capturedEnPassantPawn],
           }));
+
+
+          // Play capture sound for en passant
+          playMoveSound(); // or potentially a separate capture sound
         }
       }
     }
@@ -288,8 +312,11 @@ const App: React.FC = () => {
         newBoard[fromRow][0] = null;
         newBoard[fromRow][3]!.hasMoved = true;
       }
+
+
+      // Play castling sound (you might want to add a specific castling sound)
+      playMoveSound();
     }
-  
   
     // Check for pawn promotion
     if (piece.type === "p" && (toRow === 0 || toRow === 7)) {
@@ -297,18 +324,19 @@ const App: React.FC = () => {
       return;
     }
   
-  
     newBoard[toRow][toCol] = { ...piece, hasMoved: true };
     newBoard[fromRow][fromCol] = null;
-  
   
     if (targetPiece) {
       setCapturedPieces((prev) => ({
         ...prev,
         [targetPiece.color]: [...prev[targetPiece.color], targetPiece],
       }));
+
+
+      // Play capture sound
+      playMoveSound(); // or a separate capture sound
     }
-  
   
     // Update the board first
     setBoard(newBoard);
@@ -317,6 +345,17 @@ const App: React.FC = () => {
     const nextTurn = turn === "w" ? "b" : "w";
     const isOpponentInCheck = isInCheck(newBoard, nextTurn);
     const isOpponentInCheckmate = isInCheckmate(newBoard, nextTurn);
+    
+    // Play check sound
+    if (isOpponentInCheck) {
+      playCheckSound();
+    }
+
+
+    // Play checkmate sound
+    if (isOpponentInCheckmate) {
+      playCheckmateSound();
+    }
     
     setIsCheck(isOpponentInCheck);
     setIsCheckmate(isOpponentInCheckmate);
@@ -327,7 +366,6 @@ const App: React.FC = () => {
       [turn]: prev[turn] + timeControl.increment
     }));
   
-  
     // Start timer for the next player
     if (timerRef.current) clearInterval(timerRef.current);
     
@@ -337,6 +375,9 @@ const App: React.FC = () => {
         [nextTurn]: Math.max(0, prev[nextTurn] - 1)
       }));
     }, 1000);
+    
+    // Play turn switch sound
+    playTurnSwitchSound();
     
     // Update turn and move history
     setTurn(nextTurn);
@@ -582,6 +623,14 @@ const App: React.FC = () => {
 
   return (
     <div className={`flex items-center justify-center gap-12 min-h-screen ${currentTheme.background}`}>
+       {/* Settings Button */}
+       <button
+        onClick={() => setIsSettingsOpen(true)}
+        className="absolute top-4 right-4 p-2 rounded-full bg-gray-200 hover:bg-gray-300"
+      >
+        <Settings className="w-6 h-6" />
+      </button>
+
       <div>
         {/* Captured Pieces */}
         <div className="flex justify-between w-128 mb-6">
@@ -934,6 +983,14 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        initialSettings={soundSettings}
+        onSettingsChange={setSoundSettings}
+      />
 
       {/* Rules Modal - Add this just before the closing </div> */}
       {showRulesMenu && (
