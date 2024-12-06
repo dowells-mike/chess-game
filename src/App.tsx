@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import ChessRulesMenu from './ChessRulesMenu';
 import { Clock } from "lucide-react";
 import { RotateCcw } from "lucide-react";
 import * as SwitchPrimitives from "@radix-ui/react-switch";
@@ -150,6 +151,7 @@ const App: React.FC = () => {
   const [selectedHistoryMove, setSelectedHistoryMove] = useState<Move | null>(null);
   const [currentTheme, setCurrentTheme] = useState<BoardTheme>(BOARD_THEMES[0]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [showRulesMenu, setShowRulesMenu] = useState(false); // New state for rules menu
 
   const [timeControl, setTimeControl] = useState<TimeControl>({
     mode: 'rapid',
@@ -564,6 +566,20 @@ const App: React.FC = () => {
     }
   }, [playerTimes]);
 
+  useEffect(() => {
+    const handleEscKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showRulesMenu) {
+        setShowRulesMenu(false);
+      }
+    };
+  
+  
+    document.addEventListener('keydown', handleEscKey);
+    return () => {
+      document.removeEventListener('keydown', handleEscKey);
+    };
+  }, [showRulesMenu]);
+
   return (
     <div className={`flex items-center justify-center gap-12 min-h-screen ${currentTheme.background}`}>
       <div>
@@ -783,7 +799,7 @@ const App: React.FC = () => {
       Increment: {timeControl.increment} sec
     </span>
   </div>
-</div>
+    </div>
     
   
           <div className="space-y-6 p-6 border-t border-gray-300">
@@ -822,6 +838,17 @@ const App: React.FC = () => {
                 Undo move
               </span>
             </button>
+
+            <div className="space-y-6 p-6 border-t border-gray-300">
+           {/* Existing buttons */}
+          <button
+            onClick={() => setShowRulesMenu(true)}
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
+          >
+            Chess Rules & Help
+          </button>
+        </div>
+
           </div>
   
           {/* Move History Section */}
@@ -904,6 +931,25 @@ const App: React.FC = () => {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rules Modal - Add this just before the closing </div> */}
+      {showRulesMenu && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black opacity-50" 
+            onClick={() => setShowRulesMenu(false)}
+          ></div>
+          <div className="relative z-60 w-full max-w-6xl max-h-[90vh] overflow-auto">
+            <ChessRulesMenu />
+            <button 
+              onClick={() => setShowRulesMenu(false)}
+              className="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600 transition-colors"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
