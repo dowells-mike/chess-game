@@ -127,12 +127,38 @@ const INITIAL_BOARD: Board = [
   ],
 ];
 
-// Timer modes
+// Timer modes - Following online chess standards
 const TIME_CONTROLS: TimeControl[] = [
-  { mode: 'blitz', initialTime: 300, increment: 5 },    // 5 minutes, 5 sec increment
-  { mode: 'rapid', initialTime: 600, increment: 10 },   // 10 minutes, 10 sec increment
-  { mode: 'classical', initialTime: 1800, increment: 30 } // 30 minutes, 30 sec increment
+  { mode: 'blitz', initialTime: 180, increment: 2 },     // 3+2 (3 minutes, 2 sec increment)
+  { mode: 'rapid', initialTime: 600, increment: 5 },     // 10+5 (10 minutes, 5 sec increment) 
+  { mode: 'classical', initialTime: 1800, increment: 30 } // 30+30 (30 minutes, 30 sec increment)
 ];
+
+// Additional time control options for each category
+const TIME_CONTROL_OPTIONS = {
+  blitz: [
+    { name: '1+0', initialTime: 60, increment: 0 },
+    { name: '1+1', initialTime: 60, increment: 1 },
+    { name: '3+0', initialTime: 180, increment: 0 },
+    { name: '3+2', initialTime: 180, increment: 2 },
+    { name: '5+0', initialTime: 300, increment: 0 },
+    { name: '5+3', initialTime: 300, increment: 3 }
+  ],
+  rapid: [
+    { name: '10+0', initialTime: 600, increment: 0 },
+    { name: '10+5', initialTime: 600, increment: 5 },
+    { name: '15+10', initialTime: 900, increment: 10 },
+    { name: '20+0', initialTime: 1200, increment: 0 },
+    { name: '25+10', initialTime: 1500, increment: 10 }
+  ],
+  classical: [
+    { name: '30+0', initialTime: 1800, increment: 0 },
+    { name: '30+20', initialTime: 1800, increment: 20 },
+    { name: '45+45', initialTime: 2700, increment: 45 },
+    { name: '60+30', initialTime: 3600, increment: 30 },
+    { name: '90+30', initialTime: 5400, increment: 30 }
+  ]
+};
 
 const App: React.FC = () => {
   const [board, setBoard] = useState<Board>(INITIAL_BOARD);
@@ -175,8 +201,10 @@ const App: React.FC = () => {
   const [timeControl, setTimeControl] = useState<TimeControl>({
     mode: 'rapid',
     initialTime: 600, // 10 minutes
-    increment: 10 // 10 seconds increment
+    increment: 5 // 5 seconds increment
   });
+
+  const [selectedTimeControlOption, setSelectedTimeControlOption] = useState<string>('10+5');
 
   const [playerTimes, setPlayerTimes] = useState({
     w: timeControl.initialTime,
@@ -360,15 +388,16 @@ const App: React.FC = () => {
     setIsCheck(isOpponentInCheck);
     setIsCheckmate(isOpponentInCheckmate);
     
-    // Add time increment for the current player
+    // Stop the current timer
+    if (timerRef.current) clearInterval(timerRef.current);
+    
+    // Add time increment for the current player (who just moved)
     setPlayerTimes(prev => ({
       ...prev,
       [turn]: prev[turn] + timeControl.increment
     }));
-  
-    // Start timer for the next player
-    if (timerRef.current) clearInterval(timerRef.current);
     
+    // Start timer for the next player
     timerRef.current = setInterval(() => {
       setPlayerTimes(prev => ({
         ...prev,
@@ -589,6 +618,14 @@ const App: React.FC = () => {
       w: timeControl.initialTime,
       b: timeControl.initialTime
     });
+    
+    // Start timer for white player
+    timerRef.current = setInterval(() => {
+      setPlayerTimes(prev => ({
+        ...prev,
+        w: Math.max(0, prev.w - 1)
+      }));
+    }, 1000);
   };
 
   // Check for time out
@@ -621,8 +658,28 @@ const App: React.FC = () => {
     };
   }, [showRulesMenu]);
 
+  // Start timer for white player at the beginning of the game
+  useEffect(() => {
+    // Only start the timer if no moves have been made and no timer is running
+    if (moveHistory.length === 0 && !timerRef.current) {
+      timerRef.current = setInterval(() => {
+        setPlayerTimes(prev => ({
+          ...prev,
+          w: Math.max(0, prev.w - 1)
+        }));
+      }, 1000);
+    }
+
+    // Cleanup timer on unmount
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []); // Empty dependency array - only run once on mount
+
   return (
-    <div className={`flex items-center justify-center gap-12 min-h-screen ${currentTheme.background}`}>
+    <div className={`flex items-start justify-center gap-12 min-h-screen py-8 ${currentTheme.background}`}>
        {/* Settings Button */}
        <button
         onClick={() => setIsSettingsOpen(true)}
@@ -749,6 +806,10 @@ const App: React.FC = () => {
             </p>
             <button
               onClick={() => {
+                // Stop current timer
+                if (timerRef.current) clearInterval(timerRef.current);
+                
+                // Reset game state
                 setBoard(INITIAL_BOARD);
                 setTurn("w");
                 setSelectedPos(null);
@@ -757,6 +818,20 @@ const App: React.FC = () => {
                 setMoveHistory([]);
                 setIsCheck(false);
                 setIsCheckmate(false);
+                
+                // Reset player times
+                setPlayerTimes({
+                  w: timeControl.initialTime,
+                  b: timeControl.initialTime
+                });
+                
+                // Start timer for white player
+                timerRef.current = setInterval(() => {
+                  setPlayerTimes(prev => ({
+                    ...prev,
+                    w: Math.max(0, prev.w - 1)
+                  }));
+                }, 1000);
               }}
               className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 text-lg"
             >
@@ -767,7 +842,7 @@ const App: React.FC = () => {
       )}
   
       {/* Side Panel */}
-      <div className="w-80 bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-6">
+      <div className="w-80 h-[90vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-6 overflow-y-auto">
         <div className="space-y-6">
           {/* Black Player Section */}
     <div
@@ -805,44 +880,122 @@ const App: React.FC = () => {
     {/* Time Control Section */}
     <div className="border-t border-gray-300 pt-4">
   <div className="flex items-center justify-between mb-4">
-    <label className="text-base font-medium">Time Control</label>
+    <label className="text-base font-medium">Time Control Mode</label>
     <select 
       value={timeControl.mode}
       onChange={(e) => {
-        const selected = TIME_CONTROLS.find(tc => tc.mode === e.target.value);
-        if (selected) {
-          // Stop the current timer
-          stopTimer();
+        const selectedMode = e.target.value as 'blitz' | 'rapid' | 'classical';
+        const defaultOption = TIME_CONTROL_OPTIONS[selectedMode][1]; // Select second option as default
+        const newTimeControl = {
+          mode: selectedMode,
+          initialTime: defaultOption.initialTime,
+          increment: defaultOption.increment
+        };
+        
+        // Stop the current timer
+        stopTimer();
 
+        // Update time control
+        setTimeControl(newTimeControl);
+        setSelectedTimeControlOption(defaultOption.name);
 
-          // Update time control
-          setTimeControl(selected);
+        // Reset player times to the new initial time
+        setPlayerTimes({
+          w: defaultOption.initialTime,
+          b: defaultOption.initialTime
+        });
 
-
-          // Reset player times to the new initial time
-          setPlayerTimes({
-            w: selected.initialTime,
-            b: selected.initialTime
-          });
-
-
-          // Optional: Restart the timer if the game is in progress
-          // You might want to add a condition to check if the game has started
-          startTimer();
+        // Restart the timer for the current player if the game is in progress
+        // or for white if it's the beginning of the game
+        if (moveHistory.length === 0) {
+          // Game hasn't started, start timer for white
+          timerRef.current = setInterval(() => {
+            setPlayerTimes(prev => ({
+              ...prev,
+              w: Math.max(0, prev.w - 1)
+            }));
+          }, 1000);
+        } else {
+          // Game is in progress, start timer for current player
+          timerRef.current = setInterval(() => {
+            setPlayerTimes(prev => ({
+              ...prev,
+              [turn]: Math.max(0, prev[turn] - 1)
+            }));
+          }, 1000);
         }
       }}
       className="px-3 py-2 border rounded text-base"
     >
-      {TIME_CONTROLS.map(tc => (
-        <option key={tc.mode} value={tc.mode}>
-          {tc.mode.charAt(0).toUpperCase() + tc.mode.slice(1)}
+      <option value="blitz">Blitz</option>
+      <option value="rapid">Rapid</option>
+      <option value="classical">Classical</option>
+    </select>
+  </div>
+  
+  <div className="flex items-center justify-between mb-4">
+    <label className="text-base font-medium">Time Control</label>
+    <select 
+      value={selectedTimeControlOption}
+      onChange={(e) => {
+        const selectedOption = TIME_CONTROL_OPTIONS[timeControl.mode].find(
+          option => option.name === e.target.value
+        );
+        
+        if (selectedOption) {
+          const newTimeControl = {
+            mode: timeControl.mode,
+            initialTime: selectedOption.initialTime,
+            increment: selectedOption.increment
+          };
+          
+          // Stop the current timer
+          stopTimer();
+
+          // Update time control
+          setTimeControl(newTimeControl);
+          setSelectedTimeControlOption(selectedOption.name);
+
+          // Reset player times to the new initial time
+          setPlayerTimes({
+            w: selectedOption.initialTime,
+            b: selectedOption.initialTime
+          });
+
+          // Restart the timer for the current player if the game is in progress
+          // or for white if it's the beginning of the game
+          if (moveHistory.length === 0) {
+            // Game hasn't started, start timer for white
+            timerRef.current = setInterval(() => {
+              setPlayerTimes(prev => ({
+                ...prev,
+                w: Math.max(0, prev.w - 1)
+              }));
+            }, 1000);
+          } else {
+            // Game is in progress, start timer for current player
+            timerRef.current = setInterval(() => {
+              setPlayerTimes(prev => ({
+                ...prev,
+                [turn]: Math.max(0, prev[turn] - 1)
+              }));
+            }, 1000);
+          }
+        }
+      }}
+      className="px-3 py-2 border rounded text-base"
+    >
+      {TIME_CONTROL_OPTIONS[timeControl.mode].map(option => (
+        <option key={option.name} value={option.name}>
+          {option.name}
         </option>
       ))}
     </select>
   </div>
+  
   <div className="flex items-center justify-between mb-4">
     <span className="text-sm text-gray-600">
-      Initial Time: {Math.floor(timeControl.initialTime / 60)} min
+      Initial Time: {Math.floor(timeControl.initialTime / 60)} min {timeControl.initialTime % 60 > 0 ? `${timeControl.initialTime % 60}s` : ''}
     </span>
     <span className="text-sm text-gray-600">
       Increment: {timeControl.increment} sec
@@ -901,13 +1054,17 @@ const App: React.FC = () => {
           </div>
   
           {/* Move History Section */}
-          {moveHistory.length > 0 && (
-            <div className="border-t border-gray-300 pt-6">
-              <h3 className="text-2xl font-semibold mb-4">Move History</h3>
-              <div className="max-h-80 overflow-y-auto">
+          <div className="border-t border-gray-300 pt-6">
+            <h3 className="text-2xl font-semibold mb-4">Move History</h3>
+            <div className="h-64 overflow-y-auto border border-gray-200 rounded">
+              {moveHistory.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  No moves yet
+                </div>
+              ) : (
                 <table className="w-full text-base">
-                  <thead>
-                    <tr className="bg-gray-200">
+                  <thead className="sticky top-0 bg-gray-200">
+                    <tr>
                       <th className="px-4 py-2 text-left">Move</th>
                       <th className="px-4 py-2 text-left">Piece</th>
                     </tr>
@@ -955,9 +1112,9 @@ const App: React.FC = () => {
                     })}
                   </tbody>
                 </table>
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
   
