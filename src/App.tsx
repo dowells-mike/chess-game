@@ -664,6 +664,12 @@ const App: React.FC = () => {
       // Store current game state before entering history mode
       setCurrentGameBoard(board);
       setCurrentGameTurn(turn);
+      
+      // Pause the timer when entering history mode during an active game
+      if (gameState === "active" && timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
     
     setIsViewingHistory(true);
@@ -682,6 +688,16 @@ const App: React.FC = () => {
       from: moveHistory[moveHistory.length - 1].startPos,
       to: moveHistory[moveHistory.length - 1].endPos
     } : null);
+    
+    // Resume the timer when exiting history mode if game was active
+    if (gameState === "active" && !timerRef.current) {
+      timerRef.current = setInterval(() => {
+        setPlayerTimes(prev => ({
+          ...prev,
+          [currentGameTurn]: Math.max(0, prev[currentGameTurn] - 1)
+        }));
+      }, 1000);
+    }
   };
 
   const convertMoveToSAN = (move: Move, board: Board, moveHistory: Move[]): string => {
