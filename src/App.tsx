@@ -14,10 +14,32 @@ import {
   wouldBeInCheck,
   findKing
 } from './chess-check-detection';
-import { BoardTheme, TimeControl, CastlingRights, GameEndReason} from "./types";
+import { 
+  Color, 
+  PieceType, 
+  Position, 
+  Piece, 
+  Board, 
+  BoardTheme, 
+  TimeControl, 
+  CastlingRights, 
+  GameEndReason,
+  Move 
+} from "./types";
 import SettingsModal, { SoundSettings } from "./SettingsModal";
 import { useSoundManager } from "./useSoundManager";
 
+type GameState = "inactive" | "active" | "paused" | "ended";
+
+interface LastMove {
+  from: Position;
+  to: Position;
+}
+interface PromotionState {
+  from: Position;
+  to: Position;
+  color: Color;
+}
 
 // Switch component implementation
 const Switch = React.forwardRef<
@@ -33,36 +55,6 @@ const Switch = React.forwardRef<
   </SwitchPrimitives.Root>
 ));
 Switch.displayName = SwitchPrimitives.Root.displayName;
-
-type Color = "w" | "b";
-type PieceType = "p" | "n" | "b" | "r" | "q" | "k";
-type Position = `${number},${number}`;
-type GameState = "inactive" | "active" | "paused" | "ended";
-
-interface Piece {
-  type: PieceType;
-  color: Color;
-  hasMoved?: boolean;
-}
-
-type Board = (Piece | null)[][];
-
-interface Move {
-  startPos: Position;
-  endPos: Position;
-  piece: Piece;
-  capturedPiece: Piece | null;
-}
-
-interface LastMove {
-  from: Position;
-  to: Position;
-}
-interface PromotionState {
-  from: Position;
-  to: Position;
-  color: Color;
-}
 
 const BOARD_THEMES: BoardTheme[] = [
   {
@@ -563,15 +555,27 @@ const App: React.FC = () => {
     
     // Update turn and move history
     setTurn(nextTurn);
-    setMoveHistory((prev) => [
-      ...prev,
-      {
-        startPos: from,
-        endPos: to,
-        piece,
-        capturedPiece: targetPiece,
-      },
-    ]);
+    
+    // Create the move object with algebraic notation
+    const isEnPassantMove = piece.type === 'p' && Math.abs(fromCol - toCol) === 1 && !targetPiece;
+    const isCastlingMove = piece.type === 'k' && Math.abs(toCol - fromCol) === 2;
+    
+    const move: Move = {
+      startPos: from,
+      endPos: to,
+      piece,
+      capturedPiece: targetPiece,
+      san: '', // Will be set below
+      isCheck: isOpponentInCheck,
+      isCheckmate: isOpponentInCheckmate,
+      isCastling: isCastlingMove,
+      isEnPassant: isEnPassantMove
+    };
+    
+    // Generate algebraic notation
+    move.san = convertMoveToSAN(move, board, isOpponentInCheck, isOpponentInCheckmate);
+    
+    setMoveHistory((prev) => [...prev, move]);
     
     // Clear redo history when a new move is made
     setRedoHistory([]);
@@ -584,12 +588,54 @@ const App: React.FC = () => {
     const [toRow, toCol] = promotionState.to.split(",").map(Number);
 
     const newBoard = board.map((row) => [...row]);
+    const piece = board[fromRow][fromCol];
+    const targetPiece = board[toRow][toCol];
+    
     newBoard[toRow][toCol] = { type: pieceType, color: promotionState.color };
     newBoard[fromRow][fromCol] = null;
 
+    // Check if the opponent will be in check after promotion
+    const nextTurn = turn === "w" ? "b" : "w";
+    const isOpponentInCheck = isInCheck(newBoard, nextTurn);
+    const isOpponentInCheckmate = isInCheckmate(newBoard, nextTurn);
+    
+    // Create the move object with promotion info
+    const move: Move = {
+      startPos: promotionState.from,
+      endPos: promotionState.to,
+      piece: piece!,
+      capturedPiece: targetPiece,
+      san: '',
+      promotionPiece: pieceType,
+      isCheck: isOpponentInCheck,
+      isCheckmate: isOpponentInCheckmate,
+      isCastling: false,
+      isEnPassant: false
+    };
+    
+    // Generate algebraic notation for promotion
+    move.san = convertMoveToSAN(move, board, isOpponentInCheck, isOpponentInCheckmate);
+    
     setBoard(newBoard);
-    setTurn(turn === "w" ? "b" : "w");
+    setTurn(nextTurn);
     setPromotionState(null);
+    
+    // Add the promotion move to history
+    setMoveHistory((prev) => [...prev, move]);
+    
+    // Handle check/checkmate after promotion
+    setIsCheck(isOpponentInCheck);
+    setIsCheckmate(isOpponentInCheckmate);
+    
+    if (isOpponentInCheckmate) {
+      playCheckmateSound();
+      const winner = turn === 'w' ? 'white' : 'black';
+      setCheckmateWinner(winner);
+      setShowCheckmateModal(true);
+      endGame(winner);
+    } else if (isOpponentInCheck) {
+      playCheckSound();
+    }
   };
 
   const handleUndo = () => {
@@ -881,8 +927,13 @@ const App: React.FC = () => {
     }
   };
 
-  const convertMoveToSAN = (move: Move, board: Board, moveHistory: Move[]): string => {
-    const { piece, startPos, endPos, capturedPiece } = move;
+  const convertMoveToSAN = (
+    move: Move, 
+    boardBeforeMove: Board, 
+    isCheck: boolean = false, 
+    isCheckmate: boolean = false
+  ): string => {
+    const { piece, startPos, endPos, capturedPiece, promotionPiece, isCastling, isEnPassant } = move;
     const [fromRow, fromCol] = startPos.split(',').map(Number);
     const [toRow, toCol] = endPos.split(',').map(Number);
     
@@ -892,85 +943,189 @@ const App: React.FC = () => {
     const toFile = String.fromCharCode(97 + toCol);
     const toRank = 8 - toRow;
     
-    // Handle special moves
-    switch (piece.type) {
-      case 'k':
-        // Castling
-        if (Math.abs(fromCol - toCol) === 2) {
-          return toCol > fromCol ? 'O-O' : 'O-O-O';
-        }
-        break;
-      
-      case 'p':
-        // En passant
-        if (Math.abs(fromCol - toCol) === 1 && !capturedPiece) {
-          return `${fromFile}x${toFile}${toRank} e.p.`;
-        }
-        
-        // Promotion
-        if (toRow === 0 || toRow === 7) {
-          // Determine promotion piece (you might need to pass this information)
-          const promotionPiece = 'q'; // Default to queen, adjust as needed
-          return `${fromFile}${toRank}=${promotionPiece.toUpperCase()}`;
-        }
-        break;
+    // Handle castling
+    if (isCastling || (piece.type === 'k' && Math.abs(fromCol - toCol) === 2)) {
+      const notation = toCol > fromCol ? 'O-O' : 'O-O-O';
+      return notation + (isCheckmate ? '#' : isCheck ? '+' : '');
     }
     
-    // Disambiguate moves when multiple pieces of the same type can move to the same square
-    const disambiguateMove = () => {
-      let disambiguator = '';
+    // Handle pawn moves
+    if (piece.type === 'p') {
+      let notation = '';
       
-      // Find all pieces of the same type and color that can move to the target square
-      const similarPieces = board.flatMap((row, rowIndex) => 
-        row.map((boardPiece, colIndex) => ({
-          piece: boardPiece,
-          pos: `${rowIndex},${colIndex}` as Position
-        }))
-        .filter(({ piece: boardPiece, pos }) => 
-          boardPiece?.type === piece.type && 
-          boardPiece.color === piece.color && 
-          pos !== startPos && 
-          getLegalMoves(pos, boardPiece, board).includes(endPos)
-        )
-      );
-      
-      if (similarPieces.length > 0) {
-        // Disambiguate by file or rank
-        const sameFileConflicts = similarPieces.filter(
-          ({ pos }) => pos.split(',')[1] === fromCol.toString()
-        );
-        const sameRankConflicts = similarPieces.filter(
-          ({ pos }) => pos.split(',')[0] === fromRow.toString()
-        );
-        
-        if (sameFileConflicts.length > 0) {
-          disambiguator = fromRank.toString();
-        } else if (sameRankConflicts.length > 0) {
-          disambiguator = fromFile;
-        } else {
-          disambiguator = fromFile + fromRank;
+      // Capture or en passant
+      if (capturedPiece || isEnPassant) {
+        notation = `${fromFile}x${toFile}${toRank}`;
+        if (isEnPassant) {
+          notation += ' e.p.';
         }
+      } else {
+        // Regular pawn move
+        notation = `${toFile}${toRank}`;
       }
       
-      return disambiguator;
-    };
+      // Promotion
+      if (promotionPiece) {
+        notation += `=${promotionPiece.toUpperCase()}`;
+      }
+      
+      return notation + (isCheckmate ? '#' : isCheck ? '+' : '');
+    }
     
-    // Construct the move notation
-    const pieceSymbol = piece.type === 'p' ? '' : piece.type.toUpperCase();
-    const captureSymbol = capturedPiece ? 'x' : '';
-    const disambiguator = piece.type !== 'p' ? disambiguateMove() : '';
+    // Handle other pieces (N, B, R, Q, K)
+    const pieceSymbol = piece.type.toUpperCase();
+    let notation = pieceSymbol;
     
-    // Check
-    const boardAfterMove = board.map(row => [...row]);
-    boardAfterMove[toRow][toCol] = { ...piece, hasMoved: true };
-    boardAfterMove[fromRow][fromCol] = null;
+    // Find disambiguation needed
+    const similarPieces: Array<{piece: Piece, pos: Position}> = [];
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const boardPiece = boardBeforeMove[row][col];
+        const pos = `${row},${col}` as Position;
+        if (boardPiece && 
+            boardPiece.type === piece.type && 
+            boardPiece.color === piece.color && 
+            pos !== startPos) {
+          const moves = getLegalMoves(pos, boardPiece, boardBeforeMove);
+          if (moves.includes(endPos)) {
+            similarPieces.push({ piece: boardPiece, pos });
+          }
+        }
+      }
+    }
     
-    const isCheck = isInCheck(boardAfterMove, piece.color === 'w' ? 'b' : 'w');
-    const isCheckmate = isInCheckmate(boardAfterMove, piece.color === 'w' ? 'b' : 'w');
+    // Add disambiguation if needed
+    if (similarPieces.length > 0) {
+      const sameFile = similarPieces.some(sp => sp.pos.split(',')[1] === fromCol.toString());
+      const sameRank = similarPieces.some(sp => sp.pos.split(',')[0] === fromRow.toString());
+      
+      if (!sameFile) {
+        notation += fromFile;
+      } else if (!sameRank) {
+        notation += fromRank;
+      } else {
+        notation += fromFile + fromRank;
+      }
+    }
     
-    const checkSymbol = isCheckmate ? '#' : (isCheck ? '+' : '');
+    // Add capture symbol
+    if (capturedPiece) {
+      notation += 'x';
+    }
     
-    return `${pieceSymbol}${disambiguator}${captureSymbol}${toFile}${toRank}${checkSymbol}`;
+    // Add destination
+    notation += toFile + toRank;
+    
+    // Add check/checkmate
+    if (isCheckmate) {
+      notation += '#';
+    } else if (isCheck) {
+      notation += '+';
+    }
+    
+    return notation;
+  };
+
+  // PGN Export functionality
+  const exportToPGN = (): string => {
+    const date = new Date();
+    const formattedDate = date.toISOString().split('T')[0].replace(/-/g, '.');
+    const timeControlString = `${Math.floor(timeControl.initialTime / 60)}+${timeControl.increment}`;
+    
+    // PGN Headers
+    let pgn = '[Event "Local Chess Game"]\n';
+    pgn += '[Site "Chess App"]\n';
+    pgn += `[Date "${formattedDate}"]\n`;
+    pgn += '[Round "1"]\n';
+    pgn += '[White "Player 1"]\n';
+    pgn += '[Black "Player 2"]\n';
+    
+    // Game result
+    let result = '*'; // Ongoing game
+    if (gameState === 'ended') {
+      if (checkmateWinner === 'white') {
+        result = '1-0';
+      } else if (checkmateWinner === 'black') {
+        result = '0-1';
+      } else if (isDraw) {
+        result = '1/2-1/2';
+      }
+    }
+    pgn += `[Result "${result}"]\n`;
+    
+    // Additional headers
+    pgn += `[TimeControl "${timeControlString}"]\n`;
+    pgn += `[Mode "${timeControl.mode}"]\n`;
+    if (drawReason) {
+      pgn += `[Termination "${drawReason}"]\n`;
+    }
+    pgn += '\n';
+    
+    // Move text
+    if (moveHistory.length === 0) {
+      pgn += result;
+      return pgn;
+    }
+    
+    // Process moves in pairs (white and black)
+    for (let i = 0; i < moveHistory.length; i += 2) {
+      const moveNumber = Math.floor(i / 2) + 1;
+      const whiteMove = moveHistory[i];
+      const blackMove = moveHistory[i + 1];
+      
+      pgn += `${moveNumber}.`;
+      
+      if (whiteMove) {
+        pgn += ` ${whiteMove.san}`;
+      }
+      
+      if (blackMove) {
+        pgn += ` ${blackMove.san}`;
+      }
+      
+      pgn += ' ';
+      
+      // Add line break every 8 moves for readability
+      if (moveNumber % 8 === 0) {
+        pgn += '\n';
+      }
+    }
+    
+    // Add final result
+    pgn += result;
+    
+    return pgn;
+  };
+
+  const downloadPGN = () => {
+    const pgnContent = exportToPGN();
+    const blob = new Blob([pgnContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `chess-game-${new Date().toISOString().split('T')[0]}.pgn`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const copyPGNToClipboard = async () => {
+    const pgnContent = exportToPGN();
+    try {
+      await navigator.clipboard.writeText(pgnContent);
+      // You could add a toast notification here
+      console.log('PGN copied to clipboard');
+    } catch (err) {
+      console.error('Failed to copy PGN to clipboard:', err);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = pgnContent;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
   };
 
   // Start the timer when the game begins or a move is made
@@ -1369,6 +1524,23 @@ const App: React.FC = () => {
 
             <div className="flex gap-2">
               <button
+                onClick={downloadPGN}
+                disabled={moveHistory.length === 0}
+                className="flex-1 bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:hover:bg-purple-600 transition-colors font-medium"
+              >
+                Export PGN
+              </button>
+              <button
+                onClick={copyPGNToClipboard}
+                disabled={moveHistory.length === 0}
+                className="flex-1 bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors font-medium"
+              >
+                Copy PGN
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              <button
                 onClick={handleUndo}
                 disabled={moveHistory.length === 0 || gameState !== "active" || isViewingHistory}
                 className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors flex items-center justify-center"
@@ -1533,7 +1705,7 @@ const App: React.FC = () => {
                           : "bg-white text-gray-700 hover:bg-blue-100"
                       }`}
                     >
-                      {Math.floor(index / 2) + 1}.{index % 2 === 0 ? "" : ".."} {convertMoveToSAN(move, boardCopy, moveHistory.slice(0, index))}
+                      {Math.floor(index / 2) + 1}.{index % 2 === 0 ? "" : ".."} {move.san}
                     </button>
                   );
                 })
@@ -1812,6 +1984,22 @@ const App: React.FC = () => {
                 >
                   About & Rules
                 </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={downloadPGN}
+                    disabled={moveHistory.length === 0}
+                    className="flex-1 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 disabled:opacity-50 disabled:hover:bg-purple-600 transition-colors text-xs"
+                  >
+                    Export PGN
+                  </button>
+                  <button
+                    onClick={copyPGNToClipboard}
+                    disabled={moveHistory.length === 0}
+                    className="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors text-xs"
+                  >
+                    Copy PGN
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1829,6 +2017,7 @@ const App: React.FC = () => {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-gray-200">
                   <tr>
+                    <th className="px-2 py-1 text-left text-xs">#</th>
                     <th className="px-2 py-1 text-left text-xs">Move</th>
                     <th className="px-2 py-1 text-left text-xs">Piece</th>
                   </tr>
@@ -1861,8 +2050,11 @@ const App: React.FC = () => {
                           });
                         }}
                       >
-                        <td className="px-2 py-1 text-xs">
-                          {convertMoveToSAN(move, boardCopy, moveHistory.slice(0, index))}
+                        <td className="px-2 py-1 text-xs font-mono">
+                          {Math.floor(index / 2) + 1}.{index % 2 === 0 ? "" : ".."}
+                        </td>
+                        <td className="px-2 py-1 text-xs font-mono">
+                          {move.san}
                         </td>
                         <td className="px-2 py-1">
                           <img

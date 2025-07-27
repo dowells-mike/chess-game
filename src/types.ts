@@ -8,6 +8,19 @@ interface Piece {
   hasMoved?: boolean;
 }
 
+interface Move {
+  startPos: Position;
+  endPos: Position;
+  piece: Piece;
+  capturedPiece: Piece | null;
+  san: string; // Standard Algebraic Notation
+  promotionPiece?: PieceType;
+  isCheck?: boolean;
+  isCheckmate?: boolean;
+  isCastling?: boolean;
+  isEnPassant?: boolean;
+}
+
 type Board = (Piece | null)[][];
 
 type BoardTheme = {
@@ -33,4 +46,4 @@ interface CastlingRights {
 
 type GameEndReason = 'checkmate' | 'stalemate' | 'timeout' | 'insufficient-material' | 'threefold-repetition' | 'fifty-move-rule' | 'draw-agreement' | 'resignation';
 
-export type { Color, PieceType, Position, Piece, Board, BoardTheme, TimeControl, CastlingRights, GameEndReason };
+export type { Color, PieceType, Position, Piece, Board, BoardTheme, TimeControl, CastlingRights, GameEndReason, Move };
