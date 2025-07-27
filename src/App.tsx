@@ -679,7 +679,7 @@ const App: React.FC = () => {
   }, []); // Empty dependency array - only run once on mount
 
   return (
-    <div className={`flex items-start justify-center gap-12 min-h-screen py-8 ${currentTheme.background}`}>
+    <div className={`flex items-start justify-center gap-8 min-h-screen py-8 ${currentTheme.background}`}>
        {/* Settings Button */}
        <button
         onClick={() => setIsSettingsOpen(true)}
@@ -1052,69 +1052,69 @@ const App: React.FC = () => {
         </div>
 
           </div>
-  
-          {/* Move History Section */}
-          <div className="border-t border-gray-300 pt-6">
-            <h3 className="text-2xl font-semibold mb-4">Move History</h3>
-            <div className="h-64 overflow-y-auto border border-gray-200 rounded">
-              {moveHistory.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-gray-500">
-                  No moves yet
-                </div>
-              ) : (
-                <table className="w-full text-base">
-                  <thead className="sticky top-0 bg-gray-200">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Move</th>
-                      <th className="px-4 py-2 text-left">Piece</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {moveHistory.map((move, index) => {
-                      // Reconstruct the board state up to this move
-                      const boardCopy = INITIAL_BOARD.map(row => [...row]);
-                      for (let i = 0; i <= index; i++) {
-                        const historicalMove = moveHistory[i];
-                        const [fromRow, fromCol] = historicalMove.startPos.split(',').map(Number);
-                        const [toRow, toCol] = historicalMove.endPos.split(',').map(Number);
-                        
-                        boardCopy[toRow][toCol] = { ...historicalMove.piece, hasMoved: true };
-                        boardCopy[fromRow][fromCol] = null;
-                      }
-  
-                      return (
-                        <tr 
-                          key={index} 
-                          className={`cursor-pointer hover:bg-gray-200 ${
-                            selectedHistoryMove === move ? 'bg-blue-200' : ''
-                          }`}
-                          onClick={() => {
-                            setBoard(boardCopy);
-                            setSelectedHistoryMove(move);
-                            setLastMove({
-                              from: move.startPos,
-                              to: move.endPos
-                            });
-                          }}
-                        >
-                          <td className="px-4 py-2">
-                            {convertMoveToSAN(move, boardCopy, moveHistory.slice(0, index))}
-                          </td>
-                          <td className="px-4 py-2">
-                            <img
-                              src={`/${move.piece.color}${move.piece.type.toUpperCase()}.svg`}
-                              alt={`${move.piece.color}${move.piece.type}`}
-                              className="w-6 h-6"
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
+        </div>
+      </div>
+
+      {/* Move History Panel */}
+      <div className="w-80 h-[90vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-6">
+        <h3 className="text-2xl font-semibold mb-4">Move History</h3>
+        <div className="h-[calc(90vh-120px)] overflow-y-auto border border-gray-200 rounded">
+          {moveHistory.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              No moves yet
             </div>
-          </div>
+          ) : (
+            <table className="w-full text-base">
+              <thead className="sticky top-0 bg-gray-200">
+                <tr>
+                  <th className="px-4 py-2 text-left">Move</th>
+                  <th className="px-4 py-2 text-left">Piece</th>
+                </tr>
+              </thead>
+              <tbody>
+                {moveHistory.map((move, index) => {
+                  // Reconstruct the board state up to this move
+                  const boardCopy = INITIAL_BOARD.map(row => [...row]);
+                  for (let i = 0; i <= index; i++) {
+                    const historicalMove = moveHistory[i];
+                    const [fromRow, fromCol] = historicalMove.startPos.split(',').map(Number);
+                    const [toRow, toCol] = historicalMove.endPos.split(',').map(Number);
+                    
+                    boardCopy[toRow][toCol] = { ...historicalMove.piece, hasMoved: true };
+                    boardCopy[fromRow][fromCol] = null;
+                  }
+
+                  return (
+                    <tr 
+                      key={index} 
+                      className={`cursor-pointer hover:bg-gray-200 ${
+                        selectedHistoryMove === move ? 'bg-blue-200' : ''
+                      }`}
+                      onClick={() => {
+                        setBoard(boardCopy);
+                        setSelectedHistoryMove(move);
+                        setLastMove({
+                          from: move.startPos,
+                          to: move.endPos
+                        });
+                      }}
+                    >
+                      <td className="px-4 py-2">
+                        {convertMoveToSAN(move, boardCopy, moveHistory.slice(0, index))}
+                      </td>
+                      <td className="px-4 py-2">
+                        <img
+                          src={`/${move.piece.color}${move.piece.type.toUpperCase()}.svg`}
+                          alt={`${move.piece.color}${move.piece.type}`}
+                          className="w-6 h-6"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
   
