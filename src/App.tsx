@@ -32,6 +32,7 @@ Switch.displayName = SwitchPrimitives.Root.displayName;
 type Color = "w" | "b";
 type PieceType = "p" | "n" | "b" | "r" | "q" | "k";
 type Position = `${number},${number}`;
+type GameState = "inactive" | "active" | "paused" | "ended";
 
 interface Piece {
   type: PieceType;
@@ -170,6 +171,7 @@ const App: React.FC = () => {
   const [redoHistory, setRedoHistory] = useState<Move[]>([]);
   const [isCheck, setIsCheck] = useState(false);
   const [isCheckmate, setIsCheckmate] = useState(false);
+  const [gameState, setGameState] = useState<GameState>("inactive");
   const [showThreats, setShowThreats] = useState(false);
   const [animatingPiece, setAnimatingPiece] = useState<{
     piece: Piece;
@@ -247,6 +249,9 @@ const App: React.FC = () => {
   };
 
   const handleSquareClick = (pos: Position) => {
+    // Prevent moves if game is not active
+    if (gameState !== "active") return;
+    
     const [row, col] = pos.split(",").map(Number);
     const piece = board[row][col];
 
@@ -298,6 +303,11 @@ const App: React.FC = () => {
     const targetPiece = board[toRow][toCol];
     
     if (!piece) return;
+
+    // Set game to active on first move
+    if (gameState === "inactive") {
+      setGameState("active");
+    }
   
     const newBoard = board.map((row) => [...row]);
   
@@ -383,6 +393,7 @@ const App: React.FC = () => {
     // Play checkmate sound
     if (isOpponentInCheckmate) {
       playCheckmateSound();
+      endGame(turn === 'w' ? 'white' : 'black');
     }
     
     setIsCheck(isOpponentInCheck);
@@ -558,6 +569,86 @@ const App: React.FC = () => {
     setIsCheckmate(isOpponentInCheckmate);
   };
 
+  // Game Control Functions
+  const startGame = () => {
+    setGameState("active");
+    // Start timer for white player
+    if (!timerRef.current) {
+      timerRef.current = setInterval(() => {
+        setPlayerTimes(prev => ({
+          ...prev,
+          w: Math.max(0, prev.w - 1)
+        }));
+      }, 1000);
+    }
+  };
+
+  const pauseGame = () => {
+    if (gameState === "active") {
+      setGameState("paused");
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  };
+
+  const resumeGame = () => {
+    if (gameState === "paused") {
+      setGameState("active");
+      // Resume timer for current player
+      timerRef.current = setInterval(() => {
+        setPlayerTimes(prev => ({
+          ...prev,
+          [turn]: Math.max(0, prev[turn] - 1)
+        }));
+      }, 1000);
+    }
+  };
+
+  const resetGame = () => {
+    // Stop current timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    // Reset all game state
+    setBoard(INITIAL_BOARD);
+    setTurn("w");
+    setSelectedPos(null);
+    setLastMove(null);
+    setCapturedPieces({ w: [], b: [] });
+    setMoveHistory([]);
+    setRedoHistory([]);
+    setIsCheck(false);
+    setIsCheckmate(false);
+    setGameState("inactive");
+    setPromotionState(null);
+    setAnimatingPiece(null);
+    setSelectedHistoryMove(null);
+    
+    // Reset player times
+    setPlayerTimes({
+      w: timeControl.initialTime,
+      b: timeControl.initialTime
+    });
+    
+    // Play sound
+    playTurnSwitchSound();
+  };
+
+  const endGame = (winner?: 'white' | 'black' | 'draw') => {
+    setGameState("ended");
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    // You can add additional end game logic here
+    // such as showing a modal with the result
+  };
+
   const convertMoveToSAN = (move: Move, board: Board, moveHistory: Move[]): string => {
     const { piece, startPos, endPos, capturedPiece } = move;
     const [fromRow, fromCol] = startPos.split(',').map(Number);
@@ -704,19 +795,21 @@ const App: React.FC = () => {
 
   // Check for time out
   useEffect(() => {
-    if (playerTimes.w <= 0) {
-      // Black wins on time
-      stopTimer();
-      // You can add a modal or notification here
-      alert("White ran out of time. Black wins!");
+    if (gameState === "active") {
+      if (playerTimes.w <= 0) {
+        // Black wins on time
+        stopTimer();
+        endGame('black');
+        alert("White ran out of time. Black wins!");
+      }
+      if (playerTimes.b <= 0) {
+        // White wins on time
+        stopTimer();
+        endGame('white');
+        alert("Black ran out of time. White wins!");
+      }
     }
-    if (playerTimes.b <= 0) {
-      // White wins on time
-      stopTimer();
-      // You can add a modal or notification here
-      alert("Black ran out of time. White wins!");
-    }
-  }, [playerTimes]);
+  }, [playerTimes, gameState]);
 
   useEffect(() => {
     const handleEscKey = (e: KeyboardEvent) => {
@@ -729,28 +822,12 @@ const App: React.FC = () => {
     document.addEventListener('keydown', handleEscKey);
     return () => {
       document.removeEventListener('keydown', handleEscKey);
-    };
-  }, [showRulesMenu]);
-
-  // Start timer for white player at the beginning of the game
-  useEffect(() => {
-    // Only start the timer if no moves have been made and no timer is running
-    if (moveHistory.length === 0 && !timerRef.current) {
-      timerRef.current = setInterval(() => {
-        setPlayerTimes(prev => ({
-          ...prev,
-          w: Math.max(0, prev.w - 1)
-        }));
-      }, 1000);
-    }
-
-    // Cleanup timer on unmount
-    return () => {
+      // Cleanup timer on unmount
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
-  }, []); // Empty dependency array - only run once on mount
+  }, [showRulesMenu]);
 
   return (
     <div className={`flex items-start justify-center gap-8 min-h-screen py-8 ${currentTheme.background}`}>
@@ -879,35 +956,7 @@ const App: React.FC = () => {
               {turn === "w" ? "Black" : "White"} wins!
             </p>
             <button
-              onClick={() => {
-                // Stop current timer
-                if (timerRef.current) clearInterval(timerRef.current);
-                
-                // Reset game state
-                setBoard(INITIAL_BOARD);
-                setTurn("w");
-                setSelectedPos(null);
-                setLastMove(null);
-                setCapturedPieces({ w: [], b: [] });
-                setMoveHistory([]);
-                setRedoHistory([]);
-                setIsCheck(false);
-                setIsCheckmate(false);
-                
-                // Reset player times
-                setPlayerTimes({
-                  w: timeControl.initialTime,
-                  b: timeControl.initialTime
-                });
-                
-                // Start timer for white player
-                timerRef.current = setInterval(() => {
-                  setPlayerTimes(prev => ({
-                    ...prev,
-                    w: Math.max(0, prev.w - 1)
-                  }));
-                }, 1000);
-              }}
+              onClick={resetGame}
               className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 text-lg"
             >
               New Game
@@ -919,6 +968,21 @@ const App: React.FC = () => {
       {/* Side Panel */}
       <div className="w-80 h-[90vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-6 overflow-y-auto">
         <div className="space-y-6">
+          {/* Game Status */}
+          <div className="text-center">
+            <div className={`inline-block px-4 py-2 rounded-lg font-semibold text-white ${
+              gameState === "inactive" ? "bg-gray-500" :
+              gameState === "active" ? "bg-green-500" :
+              gameState === "paused" ? "bg-yellow-500" :
+              "bg-red-500"
+            }`}>
+              {gameState === "inactive" ? "Game Not Started" :
+               gameState === "active" ? "Game Active" :
+               gameState === "paused" ? "Game Paused" :
+               "Game Ended"}
+            </div>
+          </div>
+
           {/* Black Player Section */}
     <div
       className={`p-4 rounded-lg transition-all duration-200 flex justify-between items-center ${
@@ -958,6 +1022,7 @@ const App: React.FC = () => {
     <label className="text-base font-medium">Time Control Mode</label>
     <select 
       value={timeControl.mode}
+      disabled={gameState === "active" || gameState === "paused"}
       onChange={(e) => {
         const selectedMode = e.target.value as 'blitz' | 'rapid' | 'classical';
         const defaultOption = TIME_CONTROL_OPTIONS[selectedMode][1]; // Select second option as default
@@ -1000,7 +1065,11 @@ const App: React.FC = () => {
           }, 1000);
         }
       }}
-      className="px-3 py-2 border rounded text-base"
+      className={`px-3 py-2 border rounded text-base ${
+        gameState === "active" || gameState === "paused" 
+          ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
+          : ""
+      }`}
     >
       <option value="blitz">Blitz</option>
       <option value="rapid">Rapid</option>
@@ -1012,6 +1081,7 @@ const App: React.FC = () => {
     <label className="text-base font-medium">Time Control</label>
     <select 
       value={selectedTimeControlOption}
+      disabled={gameState === "active" || gameState === "paused"}
       onChange={(e) => {
         const selectedOption = TIME_CONTROL_OPTIONS[timeControl.mode].find(
           option => option.name === e.target.value
@@ -1058,7 +1128,11 @@ const App: React.FC = () => {
           }
         }
       }}
-      className="px-3 py-2 border rounded text-base"
+      className={`px-3 py-2 border rounded text-base ${
+        gameState === "active" || gameState === "paused" 
+          ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
+          : ""
+      }`}
     >
       {TIME_CONTROL_OPTIONS[timeControl.mode].map(option => (
         <option key={option.name} value={option.name}>
@@ -1107,7 +1181,7 @@ const App: React.FC = () => {
             <div className="flex gap-4 justify-center">
               <button
                 onClick={handleUndo}
-                disabled={moveHistory.length === 0}
+                disabled={moveHistory.length === 0 || gameState !== "active"}
                 className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors group relative"
                 title="Undo move"
               >
@@ -1119,7 +1193,7 @@ const App: React.FC = () => {
 
               <button
                 onClick={handleRedo}
-                disabled={redoHistory.length === 0}
+                disabled={redoHistory.length === 0 || gameState !== "active"}
                 className="w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 disabled:opacity-50 disabled:hover:bg-green-600 transition-colors group relative"
                 title="Redo move"
               >
@@ -1128,6 +1202,61 @@ const App: React.FC = () => {
                   Redo move
                 </span>
               </button>
+            </div>
+
+            {/* Game Control Buttons */}
+            <div className="space-y-3">
+              {gameState === "inactive" && (
+                <button
+                  onClick={startGame}
+                  className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors"
+                >
+                  Start Game
+                </button>
+              )}
+              
+              {gameState === "active" && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={pauseGame}
+                    className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors"
+                  >
+                    Pause
+                  </button>
+                  <button
+                    onClick={() => endGame()}
+                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors"
+                  >
+                    End Game
+                  </button>
+                </div>
+              )}
+              
+              {gameState === "paused" && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={resumeGame}
+                    className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors"
+                  >
+                    Resume
+                  </button>
+                  <button
+                    onClick={() => endGame()}
+                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors"
+                  >
+                    End Game
+                  </button>
+                </div>
+              )}
+              
+              {(gameState === "ended" || gameState === "paused" || gameState === "active") && (
+                <button
+                  onClick={resetGame}
+                  className="w-full bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors"
+                >
+                  Reset Game
+                </button>
+              )}
             </div>
 
             <div className="space-y-6 p-6 border-t border-gray-300">
