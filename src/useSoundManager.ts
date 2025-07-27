@@ -21,8 +21,8 @@ export const useSoundManager = (settings: SoundSettings) => {
 
   return {
     playMoveSound: () => playSound(moveSound.current, settings.moveVolume),
-    playCheckSound: () => playSound(checkSound.current, settings.moveVolume),
-    playCheckmateSound: () => playSound(checkmateSound.current, settings.moveVolume),
+    playCheckSound: () => playSound(checkSound.current, settings.checkVolume),
+    playCheckmateSound: () => playSound(checkmateSound.current, settings.checkVolume),
     playTurnSwitchSound: () => playSound(turnSwitchSound.current, settings.moveVolume),
   };
 };

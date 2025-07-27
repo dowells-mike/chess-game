@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, Volume2, VolumeX, Music } from 'lucide-react';
 import * as SwitchPrimitives from "@radix-ui/react-switch";
 import { SOUNDS } from './sounds';
@@ -44,25 +44,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onSettingsChange
 }) => {
   const [settings, setSettings] = useState<SoundSettings>(initialSettings);
-  const musicRef = useRef<HTMLAudioElement>(null);
 
-
+  // Update local settings when parent settings change
   useEffect(() => {
-    if (musicRef.current) {
-      musicRef.current.volume = settings.isMusicEnabled 
-        ? settings.musicVolume * settings.masterVolume 
-        : 0;
-      
-      settings.isMusicEnabled 
-        ? musicRef.current.play() 
-        : musicRef.current.pause();
-    }
-  }, [
-    settings.isMusicEnabled, 
-    settings.musicVolume, 
-    settings.masterVolume
-  ]);
-
+    setSettings(initialSettings);
+  }, [initialSettings]);
 
   const handleVolumeChange = (key: keyof SoundSettings, value: number) => {
     const newSettings = { ...settings, [key]: value };
@@ -72,18 +58,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
 
   const handleToggleMusic = () => {
-    setSettings(prev => ({ 
-      ...prev, 
-      isMusicEnabled: !prev.isMusicEnabled 
-    }));
+    const newSettings = { 
+      ...settings, 
+      isMusicEnabled: !settings.isMusicEnabled 
+    };
+    setSettings(newSettings);
+    onSettingsChange(newSettings);
   };
 
 
   const handleToggleSoundEffects = () => {
-    setSettings(prev => ({ 
-      ...prev, 
-      areSoundEffectsEnabled: !prev.areSoundEffectsEnabled 
-    }));
+    const newSettings = { 
+      ...settings, 
+      areSoundEffectsEnabled: !settings.areSoundEffectsEnabled 
+    };
+    setSettings(newSettings);
+    onSettingsChange(newSettings);
   };
 
 
@@ -168,13 +158,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             className="w-full"
           />
         </div>
-
-
-        <audio 
-          ref={musicRef} 
-          src={SOUNDS.BACKGROUND_MUSIC} 
-          loop 
-        />
       </div>
     </div>
   );

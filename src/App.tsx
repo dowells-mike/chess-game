@@ -227,6 +227,45 @@ const App: React.FC = () => {
     playTurnSwitchSound 
   } = useSoundManager(soundSettings);
 
+  // Background music management
+  const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
+
+  // Track user interaction for autoplay policy compliance
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      setHasUserInteracted(true);
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+    };
+
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!backgroundMusicRef.current) {
+      backgroundMusicRef.current = new Audio('/sounds/background-music.mp3');
+      backgroundMusicRef.current.loop = true;
+    }
+
+    const audio = backgroundMusicRef.current;
+    
+    if (soundSettings.isMusicEnabled && hasUserInteracted) {
+      audio.volume = soundSettings.musicVolume * soundSettings.masterVolume;
+      audio.play().catch(error => {
+        console.log('Background music autoplay prevented:', error);
+      });
+    } else {
+      audio.pause();
+    }
+  }, [soundSettings.isMusicEnabled, soundSettings.musicVolume, soundSettings.masterVolume, hasUserInteracted]);
+
   const [timeControl, setTimeControl] = useState<TimeControl>({
     mode: 'rapid',
     initialTime: 600, // 10 minutes
@@ -1028,6 +1067,10 @@ const App: React.FC = () => {
       // Cleanup timer on unmount
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+      // Cleanup background music on unmount
+      if (backgroundMusicRef.current) {
+        backgroundMusicRef.current.pause();
       }
     };
   }, [showRulesMenu]);
