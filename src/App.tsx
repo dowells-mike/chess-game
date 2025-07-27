@@ -1076,155 +1076,749 @@ const App: React.FC = () => {
   }, [showRulesMenu]);
 
   return (
-    <div className={`flex items-start justify-center gap-8 min-h-screen py-8 ${currentTheme.background}`}>
-       {/* Settings Button */}
-       <button
-        onClick={() => setIsSettingsOpen(true)}
-        className="absolute top-4 right-4 p-2 rounded-full bg-gray-200 hover:bg-gray-300"
-      >
-        <Settings className="w-6 h-6" />
-      </button>
-
-      <div>
-        {/* Captured Pieces */}
-        <div className="flex justify-between w-96 mb-4">
-          <div>
-            <h3 className="text-sm font-semibold mb-2">Captured White:</h3>
-            <div className="flex flex-wrap gap-1">
-              {capturedPieces.w.map((piece, i) => (
-                <img
-                  key={i}
-                  src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
-                  alt={`${piece.color}${piece.type}`}
-                  className="w-6 h-6"
-                />
-              ))}
-            </div>
+    <div className={`min-h-screen ${currentTheme.background}`}>
+      {/* Mobile Header */}
+      <div className="lg:hidden flex justify-between items-center p-4 bg-white bg-opacity-90 backdrop-blur-sm">
+        <div className="flex items-center space-x-4">
+          <div className={`px-3 py-1 rounded-lg font-semibold text-white text-sm ${
+            isViewingHistory ? "bg-purple-500" :
+            gameState === "inactive" ? "bg-gray-500" :
+            gameState === "active" ? "bg-green-500" :
+            gameState === "paused" ? "bg-yellow-500" :
+            "bg-red-500"
+          }`}>
+            {isViewingHistory ? "History" :
+             gameState === "inactive" ? "Not Started" :
+             gameState === "active" ? "Active" :
+             gameState === "paused" ? "Paused" :
+             "Ended"}
           </div>
-          <div>
-            <h3 className="text-sm font-semibold mb-2">Captured Black:</h3>
-            <div className="flex flex-wrap gap-1">
-              {capturedPieces.b.map((piece, i) => (
-                <img
-                  key={i}
-                  src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
-                  alt={`${piece.color}${piece.type}`}
-                  className="w-6 h-6"
-                />
-              ))}
+          
+          {/* Mobile Timer Display */}
+          <div className="flex items-center space-x-3">
+            <div className={`flex items-center space-x-1 px-2 py-1 rounded text-sm ${
+              turn === "w" ? "bg-black/15" : ""
+            }`}>
+              <span className="font-semibold">W:</span>
+              <span className="font-mono">{formatTime(playerTimes.w)}</span>
+            </div>
+            <div className={`flex items-center space-x-1 px-2 py-1 rounded text-sm ${
+              turn === "b" ? "bg-black/15" : ""
+            }`}>
+              <span className="font-semibold">B:</span>
+              <span className="font-mono">{formatTime(playerTimes.b)}</span>
             </div>
           </div>
         </div>
-  
-        {/* Board */}
-        <div className="relative">
-          {isViewingHistory && (
-            <div className="absolute inset-0 bg-purple-500 bg-opacity-20 rounded-lg z-10 flex items-center justify-center">
-              <div className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold text-lg shadow-lg">
-                History Mode - View Only
-              </div>
-            </div>
-          )}
-          
-          <div 
-            className="grid grid-cols-8 gap-0 border-2 border-gray-800" 
-            style={currentTheme.boardTexture ? {
-              backgroundImage: `url(/${currentTheme.boardTexture}.jpg)`,
-              backgroundSize: 'cover',
-              backgroundBlendMode: 'multiply'
-            } : {}}
-          >
-          {board.map((row, rowIndex) =>
-            row.map((piece, colIndex) => {
-              const pos = `${rowIndex},${colIndex}` as Position;
-              const isSelected = selectedPos === pos;
-              const isValidTarget =
-                selectedPos && isValidMove(selectedPos, pos);
-              const isDark = (rowIndex + colIndex) % 2 === 1;
-              const isUnderAttack =
-                showThreats &&
-                piece &&
-                piece.color === turn &&
-                isSquareUnderAttack(pos, turn === "w" ? "b" : "w");
-              const isAttackableBySelected =
-                selectedPos &&
-                piece &&
-                piece.color !== turn &&
-                isValidMove(selectedPos, pos);
-              const isLastMoveFrom = lastMove?.from === pos;
-              const isLastMoveTo = lastMove?.to === pos;
-              const isCurrentPlayerPiece = piece && piece.color === turn;
-              const isKingInCheck = 
-                piece && 
-                piece.type === 'k' && 
-                isCheck && 
-                piece.color === turn;
-  
-              return (
-                <div
-                  key={pos}
-                  className={`w-16 h-16 flex items-center justify-center relative cursor-pointer group
-                    ${isDark ? currentTheme.darkSquare : currentTheme.lightSquare}
-                    ${isUnderAttack ? 
-                      (isDark ? "!bg-red-600" : "!bg-red-300") : ""}
-                    ${isValidTarget && !isAttackableBySelected ? 
-                      (isDark ? "!bg-green-600" : "!bg-green-300") : ""}
-                    ${isSelected ? 
-                      (isDark ? "!bg-blue-600" : "!bg-blue-300") : ""}
-                    ${(isLastMoveFrom || isLastMoveTo) && !isAttackableBySelected ? 
-                      (isDark ? "!bg-yellow-400" : "!bg-yellow-200") : ""}
-                    ${isAttackableBySelected ? 
-                      (isDark ? "!bg-red-700" : "!bg-red-400") : ""}
-                    ${isCurrentPlayerPiece ? 
-                      (isDark ? "hover:!bg-blue-500" : "hover:!bg-blue-200") : ""}
-                    ${isKingInCheck ? 
-                      (isDark ? "!bg-red-500 animate-pulse" : "!bg-red-200 animate-pulse") : ""}
-                    transition-colors duration-300
-                  `}
-                  onClick={() => handleSquareClick(pos)}
-                >
-                  {piece && (
+        
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Desktop and Mobile Layout Container */}
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-center lg:gap-8 lg:py-8">
+        
+        {/* Settings Button - Desktop Only */}
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="hidden lg:block absolute top-4 right-4 p-2 rounded-full bg-gray-200 hover:bg-gray-300"
+        >
+          <Settings className="w-6 h-6" />
+        </button>
+
+        {/* Main Game Area */}
+        <div className="flex-1 lg:flex-none lg:order-2 px-4 lg:px-0">
+          {/* Captured Pieces - Mobile Compact */}
+          <div className="lg:hidden mb-4">
+            <div className="flex justify-between items-center bg-white bg-opacity-90 rounded-lg p-3">
+              <div className="flex-1">
+                <h3 className="text-xs font-semibold mb-1">Captured White:</h3>
+                <div className="flex flex-wrap gap-1">
+                  {capturedPieces.w.map((piece, i) => (
                     <img
+                      key={i}
                       src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
                       alt={`${piece.color}${piece.type}`}
-                      className="w-12 h-12 pointer-events-none"
+                      className="w-4 h-4"
                     />
-                  )}
-                  {/* File and rank labels */}
-                  {colIndex === 0 && (
-                    <span className={`absolute left-1 top-1 text-xs font-semibold
-                      ${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
-                      {8 - rowIndex}
-                    </span>
-                  )}
-                  {rowIndex === 7 && (
-                    <span className={`absolute right-1 bottom-1 text-xs font-semibold
-                      ${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
-                      {String.fromCharCode(97 + colIndex)}
-                    </span>
-                  )}
+                  ))}
                 </div>
-              );
-            })
-          )}
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xs font-semibold mb-1">Captured Black:</h3>
+                <div className="flex flex-wrap gap-1">
+                  {capturedPieces.b.map((piece, i) => (
+                    <img
+                      key={i}
+                      src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
+                      alt={`${piece.color}${piece.type}`}
+                      className="w-4 h-4"
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Captured Pieces - Desktop */}
+          <div className="hidden lg:flex justify-between w-96 mb-4">
+            <div>
+              <h3 className="text-sm font-semibold mb-2">Captured White:</h3>
+              <div className="flex flex-wrap gap-1">
+                {capturedPieces.w.map((piece, i) => (
+                  <img
+                    key={i}
+                    src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
+                    alt={`${piece.color}${piece.type}`}
+                    className="w-6 h-6"
+                  />
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold mb-2">Captured Black:</h3>
+              <div className="flex flex-wrap gap-1">
+                {capturedPieces.b.map((piece, i) => (
+                  <img
+                    key={i}
+                    src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
+                    alt={`${piece.color}${piece.type}`}
+                    className="w-6 h-6"
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* Board */}
+          <div className="relative mx-auto" style={{ maxWidth: 'min(100vw - 2rem, 400px)' }}>
+            {isViewingHistory && (
+              <div className="absolute inset-0 bg-purple-500 bg-opacity-20 rounded-lg z-10 flex items-center justify-center">
+                <div className="bg-purple-600 text-white px-3 py-1 rounded-lg font-semibold text-sm shadow-lg">
+                  History Mode - View Only
+                </div>
+              </div>
+            )}
+            
+            <div 
+              className="grid grid-cols-8 gap-0 border-2 border-gray-800 w-full aspect-square" 
+              style={currentTheme.boardTexture ? {
+                backgroundImage: `url(/${currentTheme.boardTexture}.jpg)`,
+                backgroundSize: 'cover',
+                backgroundBlendMode: 'multiply'
+              } : {}}
+            >
+            {board.map((row, rowIndex) =>
+              row.map((piece, colIndex) => {
+                const pos = `${rowIndex},${colIndex}` as Position;
+                const isSelected = selectedPos === pos;
+                const isValidTarget =
+                  selectedPos && isValidMove(selectedPos, pos);
+                const isDark = (rowIndex + colIndex) % 2 === 1;
+                const isUnderAttack =
+                  showThreats &&
+                  piece &&
+                  piece.color === turn &&
+                  isSquareUnderAttack(pos, turn === "w" ? "b" : "w");
+                const isAttackableBySelected =
+                  selectedPos &&
+                  piece &&
+                  piece.color !== turn &&
+                  isValidMove(selectedPos, pos);
+                const isLastMoveFrom = lastMove?.from === pos;
+                const isLastMoveTo = lastMove?.to === pos;
+                const isCurrentPlayerPiece = piece && piece.color === turn;
+                const isKingInCheck = 
+                  piece && 
+                  piece.type === 'k' && 
+                  isCheck && 
+                  piece.color === turn;
+
+                return (
+                  <div
+                    key={pos}
+                    className={`aspect-square flex items-center justify-center relative cursor-pointer group touch-manipulation
+                      ${isDark ? currentTheme.darkSquare : currentTheme.lightSquare}
+                      ${isUnderAttack ? 
+                        (isDark ? "!bg-red-600" : "!bg-red-300") : ""}
+                      ${isValidTarget && !isAttackableBySelected ? 
+                        (isDark ? "!bg-green-600" : "!bg-green-300") : ""}
+                      ${isSelected ? 
+                        (isDark ? "!bg-blue-600" : "!bg-blue-300") : ""}
+                      ${(isLastMoveFrom || isLastMoveTo) && !isAttackableBySelected ? 
+                        (isDark ? "!bg-yellow-400" : "!bg-yellow-200") : ""}
+                      ${isAttackableBySelected ? 
+                        (isDark ? "!bg-red-700" : "!bg-red-400") : ""}
+                      ${isCurrentPlayerPiece ? 
+                        (isDark ? "hover:!bg-blue-500" : "hover:!bg-blue-200") : ""}
+                      ${isKingInCheck ? 
+                        (isDark ? "!bg-red-500 animate-pulse" : "!bg-red-200 animate-pulse") : ""}
+                      transition-colors duration-300
+                    `}
+                    onClick={() => handleSquareClick(pos)}
+                  >
+                    {piece && (
+                      <img
+                        src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
+                        alt={`${piece.color}${piece.type}`}
+                        className="w-3/4 h-3/4 pointer-events-none"
+                      />
+                    )}
+                    {/* File and rank labels - responsive sizing */}
+                    {colIndex === 0 && (
+                      <span className={`absolute left-0.5 lg:left-1 top-0.5 lg:top-1 text-xs font-semibold
+                        ${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
+                        {8 - rowIndex}
+                      </span>
+                    )}
+                    {rowIndex === 7 && (
+                      <span className={`absolute right-0.5 lg:right-1 bottom-0.5 lg:bottom-1 text-xs font-semibold
+                        ${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
+                        {String.fromCharCode(97 + colIndex)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+          </div>
         </div>
+
+        {/* Mobile Bottom Controls */}
+        <div className="lg:hidden p-4 bg-white bg-opacity-90 backdrop-blur-sm">
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {gameState === "inactive" && (
+              <button
+                onClick={startGame}
+                className="col-span-2 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+              >
+                Start Game
+              </button>
+            )}
+            
+            {gameState === "active" && (
+              <>
+                <button
+                  onClick={pauseGame}
+                  className="bg-yellow-600 text-white py-3 rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+                >
+                  Pause
+                </button>
+                <button
+                  onClick={() => endGame()}
+                  className="bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition-colors font-medium"
+                >
+                  End Game
+                </button>
+              </>
+            )}
+            
+            {gameState === "paused" && (
+              <>
+                <button
+                  onClick={resumeGame}
+                  className="bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                >
+                  Resume
+                </button>
+                <button
+                  onClick={() => endGame()}
+                  className="bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition-colors font-medium"
+                >
+                  End Game
+                </button>
+              </>
+            )}
+            
+            {(gameState === "ended" || gameState === "paused" || gameState === "active") && (
+              <button
+                onClick={resetGame}
+                className="bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors font-medium"
+              >
+                Reset Game
+              </button>
+            )}
+
+            {gameState === "active" && !isViewingHistory && (
+              <>
+                <button
+                  onClick={offerDraw}
+                  className="bg-yellow-600 text-white py-3 rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+                >
+                  Offer Draw
+                </button>
+                <button
+                  onClick={resign}
+                  className="bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition-colors font-medium"
+                >
+                  Resign
+                </button>
+              </>
+            )}
+
+            <button
+              onClick={() => setShowRulesMenu(true)}
+              className="bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              About & Rules
+            </button>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleUndo}
+                disabled={moveHistory.length === 0 || gameState !== "active" || isViewingHistory}
+                className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors flex items-center justify-center"
+                title="Undo move"
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
+
+              <button
+                onClick={handleRedo}
+                disabled={redoHistory.length === 0 || gameState !== "active" || isViewingHistory}
+                className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:hover:bg-green-600 transition-colors flex items-center justify-center"
+                title="Redo move"
+              >
+                <RotateCw className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {isViewingHistory && (
+            <button
+              onClick={exitHistoryMode}
+              className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium mb-4"
+            >
+              Return to Current Game
+            </button>
+          )}
+          
+          {/* Mobile Horizontal Move History */}
+          <div className="bg-gray-50 rounded-lg p-3">
+            <h3 className="text-sm font-semibold mb-2 text-gray-800">Move History</h3>
+            <div className="flex gap-1 overflow-x-auto pb-2">
+              {moveHistory.length === 0 ? (
+                <span className="text-gray-500 text-sm">No moves yet</span>
+              ) : (
+                moveHistory.map((move, index) => {
+                  // Reconstruct the board state up to this move
+                  const boardCopy = INITIAL_BOARD.map(row => [...row]);
+                  for (let i = 0; i <= index; i++) {
+                    const historicalMove = moveHistory[i];
+                    const [fromRow, fromCol] = historicalMove.startPos.split(',').map(Number);
+                    const [toRow, toCol] = historicalMove.endPos.split(',').map(Number);
+                    
+                    boardCopy[toRow][toCol] = { ...historicalMove.piece, hasMoved: true };
+                    boardCopy[fromRow][fromCol] = null;
+                  }
+
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        const historyTurn = move.piece.color === 'w' ? 'b' : 'w';
+                        
+                        enterHistoryMode(boardCopy, historyTurn, move);
+                        setLastMove({
+                          from: move.startPos,
+                          to: move.endPos
+                        });
+                      }}
+                      className={`flex-shrink-0 px-2 py-1 text-xs rounded transition-colors ${
+                        selectedHistoryMove === move && isViewingHistory
+                          ? "bg-blue-500 text-white"
+                          : "bg-white text-gray-700 hover:bg-blue-100"
+                      }`}
+                    >
+                      {Math.floor(index / 2) + 1}.{index % 2 === 0 ? "" : ".."} {convertMoveToSAN(move, boardCopy, moveHistory.slice(0, index))}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop Side Panel */}
+        <div className="hidden lg:block w-64 h-[80vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-4 overflow-y-auto lg:order-1">
+          <div className="space-y-4">
+            {/* Game Status */}
+            <div className="text-center">
+              <div className={`inline-block px-3 py-1 rounded-lg font-semibold text-white text-sm ${
+                isViewingHistory ? "bg-purple-500" :
+                gameState === "inactive" ? "bg-gray-500" :
+                gameState === "active" ? "bg-green-500" :
+                gameState === "paused" ? "bg-yellow-500" :
+                "bg-red-500"
+              }`}>
+                {isViewingHistory ? "Viewing History" :
+                 gameState === "inactive" ? "Game Not Started" :
+                 gameState === "active" ? "Game Active" :
+                 gameState === "paused" ? "Game Paused" :
+                 "Game Ended"}
+              </div>
+              
+              {isViewingHistory && (
+                <button
+                  onClick={exitHistoryMode}
+                  className="mt-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-xs"
+                >
+                  Return to Current Game
+                </button>
+              )}
+            </div>
+
+            {/* Black Player Section */}
+            <div
+              className={`p-3 rounded-lg transition-all duration-200 flex justify-between items-center ${
+                turn === "b" ? "bg-black/15 scale-105" : ""
+              }`}
+            >
+              <h2 className="text-lg font-semibold">Black Player</h2>
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4" />
+                <span className="text-base font-mono font-semibold">
+                  {formatTime(playerTimes.b)}
+                </span>
+              </div>
+            </div>
+
+            {/* White Player Section */}
+            <div
+              className={`p-3 rounded-lg transition-all duration-200 flex justify-between items-center ${
+                turn === "w" ? "bg-black/15 scale-105" : ""
+              }`}
+            >
+              <h2 className="text-lg font-semibold">White Player</h2>
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4" />
+                <span className="text-base font-mono font-semibold">
+                  {formatTime(playerTimes.w)}
+                </span>
+              </div>
+            </div>
+
+            {/* Time Control Section - Desktop Only */}
+            <div className="border-t border-gray-300 pt-4">
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-base font-medium">Time Control Mode</label>
+                <select 
+                  value={timeControl.mode}
+                  disabled={gameState === "active" || gameState === "paused"}
+                  onChange={(e) => {
+                    const selectedMode = e.target.value as 'blitz' | 'rapid' | 'classical';
+                    const defaultOption = TIME_CONTROL_OPTIONS[selectedMode][1];
+                    const newTimeControl = {
+                      mode: selectedMode,
+                      initialTime: defaultOption.initialTime,
+                      increment: defaultOption.increment
+                    };
+                    
+                    stopTimer();
+                    setTimeControl(newTimeControl);
+                    setSelectedTimeControlOption(defaultOption.name);
+                    setPlayerTimes({
+                      w: defaultOption.initialTime,
+                      b: defaultOption.initialTime
+                    });
+
+                    if (gameState === "active") {
+                      timerRef.current = setInterval(() => {
+                        setPlayerTimes(prev => ({
+                          ...prev,
+                          [turn]: Math.max(0, prev[turn] - 1)
+                        }));
+                      }, 1000);
+                    }
+                  }}
+                  className={`px-3 py-2 border rounded text-base ${
+                    gameState === "active" || gameState === "paused" 
+                      ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
+                      : ""
+                  }`}
+                >
+                  <option value="blitz">Blitz</option>
+                  <option value="rapid">Rapid</option>
+                  <option value="classical">Classical</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-base font-medium">Time Control</label>
+                <select 
+                  value={selectedTimeControlOption}
+                  disabled={gameState === "active" || gameState === "paused"}
+                  onChange={(e) => {
+                    const selectedOption = TIME_CONTROL_OPTIONS[timeControl.mode].find(
+                      option => option.name === e.target.value
+                    );
+                    
+                    if (selectedOption) {
+                      const newTimeControl = {
+                        mode: timeControl.mode,
+                        initialTime: selectedOption.initialTime,
+                        increment: selectedOption.increment
+                      };
+                      
+                      stopTimer();
+                      setTimeControl(newTimeControl);
+                      setSelectedTimeControlOption(selectedOption.name);
+                      setPlayerTimes({
+                        w: selectedOption.initialTime,
+                        b: selectedOption.initialTime
+                      });
+
+                      if (gameState === "active") {
+                        timerRef.current = setInterval(() => {
+                          setPlayerTimes(prev => ({
+                            ...prev,
+                            [turn]: Math.max(0, prev[turn] - 1)
+                          }));
+                        }, 1000);
+                      }
+                    }
+                  }}
+                  className={`px-3 py-2 border rounded text-base ${
+                    gameState === "active" || gameState === "paused" 
+                      ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
+                      : ""
+                  }`}
+                >
+                  {TIME_CONTROL_OPTIONS[timeControl.mode].map(option => (
+                    <option key={option.name} value={option.name}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm text-gray-600">
+                  Initial Time: {Math.floor(timeControl.initialTime / 60)} min {timeControl.initialTime % 60 > 0 ? `${timeControl.initialTime % 60}s` : ''}
+                </span>
+                <span className="text-sm text-gray-600">
+                  Increment: {timeControl.increment} sec
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-6 p-6 border-t border-gray-300">
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-base font-medium">Theme</label>
+                <select 
+                  value={currentTheme.name}
+                  onChange={(e) => {
+                    const selectedTheme = BOARD_THEMES.find(theme => theme.name === e.target.value);
+                    if (selectedTheme) setCurrentTheme(selectedTheme);
+                  }}
+                  className="px-3 py-2 border rounded text-base"
+                >
+                  {BOARD_THEMES.map(theme => (
+                    <option key={theme.name} value={theme.name}>
+                      {theme.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-base font-medium">Show Threats</label>
+                <Switch checked={showThreats} onCheckedChange={setShowThreats} />
+              </div>
+
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={handleUndo}
+                  disabled={moveHistory.length === 0 || gameState !== "active" || isViewingHistory}
+                  className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors group relative"
+                  title="Undo move"
+                >
+                  <RotateCcw className="w-6 h-6" />
+                  <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm py-1 px-3 rounded -top-10 left-1/2 transform -translate-x-1/2">
+                    Undo move
+                  </span>
+                </button>
+
+                <button
+                  onClick={handleRedo}
+                  disabled={redoHistory.length === 0 || gameState !== "active" || isViewingHistory}
+                  className="w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 disabled:opacity-50 disabled:hover:bg-green-600 transition-colors group relative"
+                  title="Redo move"
+                >
+                  <RotateCw className="w-6 h-6" />
+                  <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm py-1 px-3 rounded -top-10 left-1/2 transform -translate-x-1/2">
+                    Redo move
+                  </span>
+                </button>
+              </div>
+
+              {/* Game Control Buttons */}
+              <div className="space-y-2">
+                {gameState === "inactive" && (
+                  <button
+                    onClick={startGame}
+                    className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors text-sm"
+                  >
+                    Start Game
+                  </button>
+                )}
+                
+                {gameState === "active" && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={pauseGame}
+                      className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors text-xs"
+                    >
+                      Pause
+                    </button>
+                    <button
+                      onClick={() => endGame()}
+                      className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
+                    >
+                      End Game
+                    </button>
+                  </div>
+                )}
+                
+                {gameState === "paused" && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={resumeGame}
+                      className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors text-xs"
+                    >
+                      Resume
+                    </button>
+                    <button
+                      onClick={() => endGame()}
+                      className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
+                    >
+                      End Game
+                    </button>
+                  </div>
+                )}
+                
+                {(gameState === "ended" || gameState === "paused" || gameState === "active") && (
+                  <button
+                    onClick={resetGame}
+                    className="w-full bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors text-sm"
+                  >
+                    Reset Game
+                  </button>
+                )}
+
+                {/* Draw and Resignation Buttons */}
+                {gameState === "active" && !isViewingHistory && (
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={offerDraw}
+                      className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors text-xs"
+                    >
+                      Offer Draw
+                    </button>
+                    <button
+                      onClick={resign}
+                      className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
+                    >
+                      Resign
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2 p-3 border-t border-gray-300">
+                <button
+                  onClick={() => setShowRulesMenu(true)}
+                  className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors text-sm"
+                >
+                  About & Rules
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop Move History Panel */}
+        <div className="hidden lg:block w-64 h-[80vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-4 lg:order-3">
+          <h3 className="text-lg font-semibold mb-3">Move History</h3>
+          <div className="h-[calc(80vh-80px)] overflow-y-auto border border-gray-200 rounded">
+            {moveHistory.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                No moves yet
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-gray-200">
+                  <tr>
+                    <th className="px-2 py-1 text-left text-xs">Move</th>
+                    <th className="px-2 py-1 text-left text-xs">Piece</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {moveHistory.map((move, index) => {
+                    const boardCopy = INITIAL_BOARD.map(row => [...row]);
+                    for (let i = 0; i <= index; i++) {
+                      const historicalMove = moveHistory[i];
+                      const [fromRow, fromCol] = historicalMove.startPos.split(',').map(Number);
+                      const [toRow, toCol] = historicalMove.endPos.split(',').map(Number);
+                      
+                      boardCopy[toRow][toCol] = { ...historicalMove.piece, hasMoved: true };
+                      boardCopy[fromRow][fromCol] = null;
+                    }
+
+                    return (
+                      <tr 
+                        key={index} 
+                        className={`cursor-pointer hover:bg-gray-200 ${
+                          selectedHistoryMove === move ? 'bg-blue-200' : ''
+                        }`}
+                        onClick={() => {
+                          const historyTurn = move.piece.color === 'w' ? 'b' : 'w';
+                          
+                          enterHistoryMode(boardCopy, historyTurn, move);
+                          setLastMove({
+                            from: move.startPos,
+                            to: move.endPos
+                          });
+                        }}
+                      >
+                        <td className="px-2 py-1 text-xs">
+                          {convertMoveToSAN(move, boardCopy, moveHistory.slice(0, index))}
+                        </td>
+                        <td className="px-2 py-1">
+                          <img
+                            src={`/${move.piece.color}${move.piece.type.toUpperCase()}.svg`}
+                            alt={`${move.piece.color}${move.piece.type}`}
+                            className="w-4 h-4"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       </div>
   
       {isCheck && !isCheckmate && (
-        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-lg">
+        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded-lg shadow-lg z-50 text-base lg:text-lg">
           Check!
         </div>
       )}
-  
+
       {showCheckmateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-          <div className="bg-white p-12 rounded-lg shadow-xl max-w-md">
-            <h2 className="text-4xl font-bold mb-6 text-center">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 lg:p-12 rounded-lg shadow-xl max-w-md w-full">
+            <h2 className="text-2xl lg:text-4xl font-bold mb-4 lg:mb-6 text-center">
               {drawReason === 'timeout' ? 'Time Out!' : 
                drawReason === 'resignation' ? 'Resignation!' : 'Checkmate!'}
             </h2>
-            <p className="text-2xl mb-8 text-center">
+            <p className="text-lg lg:text-2xl mb-6 lg:mb-8 text-center">
               {drawReason === 'timeout' 
                 ? `${checkmateWinner === "white" ? "White" : "Black"} wins on time!`
                 : drawReason === 'resignation'
@@ -1232,10 +1826,10 @@ const App: React.FC = () => {
                 : `${checkmateWinner === "white" ? "White" : "Black"} wins!`
               }
             </p>
-            <div className="flex gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={() => setShowCheckmateModal(false)}
-                className="bg-gray-600 text-white px-6 py-3 rounded hover:bg-gray-700 text-lg transition-colors"
+                className="bg-gray-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded hover:bg-gray-700 text-base lg:text-lg transition-colors"
               >
                 Close
               </button>
@@ -1244,7 +1838,7 @@ const App: React.FC = () => {
                   setShowCheckmateModal(false);
                   resetGame();
                 }}
-                className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 text-lg transition-colors"
+                className="bg-blue-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded hover:bg-blue-700 text-base lg:text-lg transition-colors"
               >
                 New Game
               </button>
@@ -1254,19 +1848,19 @@ const App: React.FC = () => {
       )}
 
       {showDrawModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-          <div className="bg-white p-12 rounded-lg shadow-xl max-w-md">
-            <h2 className="text-4xl font-bold mb-6 text-center">Draw!</h2>
-            <p className="text-2xl mb-8 text-center">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 lg:p-12 rounded-lg shadow-xl max-w-md w-full">
+            <h2 className="text-2xl lg:text-4xl font-bold mb-4 lg:mb-6 text-center">Draw!</h2>
+            <p className="text-lg lg:text-2xl mb-6 lg:mb-8 text-center">
               {drawReason === 'stalemate' && 'Stalemate - No legal moves available'}
               {drawReason === 'insufficient-material' && 'Insufficient material to checkmate'}
               {drawReason === 'threefold-repetition' && 'Threefold repetition'}
               {drawReason === 'fifty-move-rule' && 'Fifty-move rule'}
             </p>
-            <div className="flex gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={() => setShowDrawModal(false)}
-                className="bg-gray-600 text-white px-6 py-3 rounded hover:bg-gray-700 text-lg transition-colors"
+                className="bg-gray-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded hover:bg-gray-700 text-base lg:text-lg transition-colors"
               >
                 Close
               </button>
@@ -1275,16 +1869,14 @@ const App: React.FC = () => {
                   setShowDrawModal(false);
                   resetGame();
                 }}
-                className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 text-lg transition-colors"
+                className="bg-blue-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded hover:bg-blue-700 text-base lg:text-lg transition-colors"
               >
                 New Game
               </button>
             </div>
           </div>
         </div>
-      )}
-  
-      {/* Side Panel */}
+      )}      {/* Side Panel */}
       <div className="w-64 h-[80vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-4 overflow-y-auto">
         <div className="space-y-4">
           {/* Game Status */}
@@ -1600,87 +2192,22 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Move History Panel */}
-      <div className="w-64 h-[80vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-4">
-        <h3 className="text-lg font-semibold mb-3">Move History</h3>
-        <div className="h-[calc(80vh-80px)] overflow-y-auto border border-gray-200 rounded">
-          {moveHistory.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-              No moves yet
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-gray-200">
-                <tr>
-                  <th className="px-2 py-1 text-left text-xs">Move</th>
-                  <th className="px-2 py-1 text-left text-xs">Piece</th>
-                </tr>
-              </thead>
-              <tbody>
-                {moveHistory.map((move, index) => {
-                  // Reconstruct the board state up to this move
-                  const boardCopy = INITIAL_BOARD.map(row => [...row]);
-                  for (let i = 0; i <= index; i++) {
-                    const historicalMove = moveHistory[i];
-                    const [fromRow, fromCol] = historicalMove.startPos.split(',').map(Number);
-                    const [toRow, toCol] = historicalMove.endPos.split(',').map(Number);
-                    
-                    boardCopy[toRow][toCol] = { ...historicalMove.piece, hasMoved: true };
-                    boardCopy[fromRow][fromCol] = null;
-                  }
-
-                  return (
-                    <tr 
-                      key={index} 
-                      className={`cursor-pointer hover:bg-gray-200 ${
-                        selectedHistoryMove === move ? 'bg-blue-200' : ''
-                      }`}
-                      onClick={() => {
-                        // Determine the turn at this point in history
-                        const historyTurn = move.piece.color === 'w' ? 'b' : 'w'; // Turn after this move
-                        
-                        enterHistoryMode(boardCopy, historyTurn, move);
-                        setLastMove({
-                          from: move.startPos,
-                          to: move.endPos
-                        });
-                      }}
-                    >
-                      <td className="px-2 py-1 text-xs">
-                        {convertMoveToSAN(move, boardCopy, moveHistory.slice(0, index))}
-                      </td>
-                      <td className="px-2 py-1">
-                        <img
-                          src={`/${move.piece.color}${move.piece.type.toUpperCase()}.svg`}
-                          alt={`${move.piece.color}${move.piece.type}`}
-                          className="w-4 h-4"
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
   
       {promotionState && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg">
-            <h2 className="text-2xl font-bold mb-6">Choose promotion piece:</h2>
-            <div className="flex gap-6">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4">
+          <div className="bg-white p-4 lg:p-6 rounded-lg max-w-md w-full">
+            <h2 className="text-lg lg:text-2xl font-bold mb-4 lg:mb-6 text-center">Choose promotion piece:</h2>
+            <div className="grid grid-cols-2 lg:flex gap-4 lg:gap-6">
               {(["q", "r", "b", "n"] as PieceType[]).map((type) => (
                 <button
                   key={type}
                   onClick={() => handlePromotion(type)}
-                  className="p-3 hover:bg-gray-300 rounded"
+                  className="p-3 hover:bg-gray-300 rounded flex items-center justify-center"
                 >
                   <img
                     src={`/${promotionState.color}${type.toUpperCase()}.svg`}
                     alt={`${promotionState.color}${type}`}
-                    className="w-24 h-24"
+                    className="w-16 h-16 lg:w-24 lg:h-24"
                   />
                 </button>
               ))}
@@ -1697,14 +2224,14 @@ const App: React.FC = () => {
         onSettingsChange={setSoundSettings}
       />
 
-      {/* Rules Modal - Add this just before the closing </div> */}
+      {/* Rules Modal */}
       {showRulesMenu && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 lg:p-4">
           <div 
             className="absolute inset-0 bg-black opacity-50" 
             onClick={() => setShowRulesMenu(false)}
           ></div>
-          <div className="relative z-60 w-full max-w-5xl max-h-[90vh] overflow-hidden">
+          <div className="relative z-60 w-full max-w-sm sm:max-w-md lg:max-w-5xl max-h-[95vh] lg:max-h-[90vh] overflow-hidden">
             <ChessRulesMenu />
           </div>
         </div>
@@ -1712,22 +2239,22 @@ const App: React.FC = () => {
 
       {/* Draw Offer Modal */}
       {showDrawOfferModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-          <div className="bg-white p-8 rounded-lg shadow-xl max-w-md">
-            <h2 className="text-2xl font-bold mb-4 text-center">Draw Offer</h2>
-            <p className="text-lg mb-6 text-center">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 lg:p-8 rounded-lg shadow-xl max-w-md w-full">
+            <h2 className="text-xl lg:text-2xl font-bold mb-4 text-center">Draw Offer</h2>
+            <p className="text-base lg:text-lg mb-6 text-center">
               {drawOfferPending === 'white' ? 'White' : 'Black'} offers a draw.
             </p>
-            <div className="flex gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={declineDraw}
-                className="bg-red-600 text-white px-6 py-3 rounded hover:bg-red-700 text-lg transition-colors"
+                className="bg-red-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded hover:bg-red-700 text-base lg:text-lg transition-colors"
               >
                 Decline
               </button>
               <button
                 onClick={acceptDraw}
-                className="bg-green-600 text-white px-6 py-3 rounded hover:bg-green-700 text-lg transition-colors"
+                className="bg-green-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded hover:bg-green-700 text-base lg:text-lg transition-colors"
               >
                 Accept
               </button>

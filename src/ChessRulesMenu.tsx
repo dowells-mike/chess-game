@@ -100,14 +100,14 @@ const ChessRulesMenu: React.FC = () => {
   return (
     <div className="bg-white shadow-2xl rounded-2xl w-full max-w-5xl overflow-hidden">
       {/* Header with integrated close button */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
-        <h1 className="text-2xl font-bold">Chess Guide & Information</h1>
+      <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3 lg:p-4">
+        <h1 className="text-lg lg:text-2xl font-bold">Chess Guide & Information</h1>
         <button 
           onClick={() => window.dispatchEvent(new CustomEvent('closeRulesMenu'))}
           className="p-2 hover:bg-white/20 rounded-full transition-colors"
           title="Close"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
@@ -116,7 +116,7 @@ const ChessRulesMenu: React.FC = () => {
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 bg-gray-50">
         <button 
-          className={`flex-1 p-4 font-medium transition-all duration-200 ${
+          className={`flex-1 p-2 lg:p-4 text-sm lg:text-base font-medium transition-all duration-200 ${
             activeSection === 'about' 
               ? 'bg-blue-500 text-white shadow-sm' 
               : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
@@ -126,7 +126,7 @@ const ChessRulesMenu: React.FC = () => {
           About Me
         </button>
         <button 
-          className={`flex-1 p-4 font-medium transition-all duration-200 ${
+          className={`flex-1 p-2 lg:p-4 text-sm lg:text-base font-medium transition-all duration-200 ${
             activeSection === 'pieces' 
               ? 'bg-blue-500 text-white shadow-sm' 
               : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
@@ -136,7 +136,7 @@ const ChessRulesMenu: React.FC = () => {
           Chess Pieces
         </button>
         <button 
-          className={`flex-1 p-4 font-medium transition-all duration-200 ${
+          className={`flex-1 p-2 lg:p-4 text-sm lg:text-base font-medium transition-all duration-200 ${
             activeSection === 'rules' 
               ? 'bg-blue-500 text-white shadow-sm' 
               : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
@@ -151,42 +151,42 @@ const ChessRulesMenu: React.FC = () => {
       {/* Content Area */}
       <div className="max-h-[75vh] overflow-y-auto">
         {activeSection === 'about' && (
-          <div className="p-8 max-w-4xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-3 text-gray-800">About Me</h2>
+          <div className="p-4 lg:p-8 max-w-4xl mx-auto">
+            <div className="text-center mb-6 lg:mb-8">
+              <h2 className="text-2xl lg:text-3xl font-bold mb-3 text-gray-800">About Me</h2>
               <div className="w-16 h-1 bg-blue-500 mx-auto rounded-full"></div>
             </div>
             
-            <div className="bg-gray-50 rounded-2xl p-8 shadow-sm">
-              <div className="grid md:grid-cols-2 gap-8">
+            <div className="bg-gray-50 rounded-2xl p-4 lg:p-8 shadow-sm">
+              <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
                 {/* Left Column - Personal Info */}
-                <div className="space-y-6">
+                <div className="space-y-4 lg:space-y-6">
                   <div>
-                    <h3 className="text-xl font-semibold mb-4 text-gray-800">Contact & Location</h3>
+                    <h3 className="text-lg lg:text-xl font-semibold mb-3 lg:mb-4 text-gray-800">Contact & Location</h3>
                     <div className="space-y-3">
                       <div className="flex items-center space-x-3">
-                        <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 lg:w-5 lg:h-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
                           <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
                         </svg>
                         <a 
                           href="mailto:mikedowells150@gmail.com" 
-                          className="text-blue-600 hover:text-blue-800 transition-colors"
+                          className="text-blue-600 hover:text-blue-800 transition-colors text-sm lg:text-base break-all"
                         >
                           mikedowells150@gmail.com
                         </a>
                       </div>
                       <div className="flex items-center space-x-3">
-                        <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 lg:w-5 lg:h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
                         </svg>
-                        <span className="text-gray-700">Dublin, Ireland</span>
+                        <span className="text-gray-700 text-sm lg:text-base">Dublin, Ireland</span>
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <h3 className="text-xl font-semibold mb-4 text-gray-800">Connect With Me</h3>
+                    <h3 className="text-lg lg:text-xl font-semibold mb-3 lg:mb-4 text-gray-800">Connect With Me</h3>
                     <div className="space-y-3">
                       <a 
                         href="https://www.linkedin.com/in/dowellsmike/" 
@@ -194,10 +194,10 @@ const ChessRulesMenu: React.FC = () => {
                         rel="noopener noreferrer"
                         className="flex items-center space-x-3 text-blue-600 hover:text-blue-800 transition-colors group"
                       >
-                        <svg className="w-5 h-5 text-blue-600 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600 group-hover:scale-110 transition-transform flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.338 16.338H13.67V12.16c0-.995-.017-2.277-1.387-2.277-1.39 0-1.601 1.086-1.601 2.207v4.248H8.014v-8.59h2.559v1.174h.037c.356-.675 1.227-1.387 2.526-1.387 2.703 0 3.203 1.778 3.203 4.092v4.711zM5.005 6.575a1.548 1.548 0 11-.003-3.096 1.548 1.548 0 01.003 3.096zm-1.337 9.763H6.34v-8.59H3.667v8.59zM17.668 1H2.328C1.595 1 1 1.581 1 2.298v15.403C1 18.418 1.595 19 2.328 19h15.34c.734 0 1.332-.582 1.332-1.299V2.298C19 1.581 18.402 1 17.668 1z" clipRule="evenodd"/>
                         </svg>
-                        <span>LinkedIn</span>
+                        <span className="text-sm lg:text-base">LinkedIn</span>
                       </a>
                       <a 
                         href="https://github.com/dowells-mike" 
@@ -279,32 +279,32 @@ const ChessRulesMenu: React.FC = () => {
         )}
 
         {activeSection === 'pieces' && (
-          <div className="p-6">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-3 text-gray-800">Chess Pieces</h2>
-              <p className="text-gray-600">Learn about each piece and how they move</p>
+          <div className="p-4 lg:p-6">
+            <div className="text-center mb-6 lg:mb-8">
+              <h2 className="text-2xl lg:text-3xl font-bold mb-3 text-gray-800">Chess Pieces</h2>
+              <p className="text-gray-600 text-sm lg:text-base">Learn about each piece and how they move</p>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
               {PIECE_RULES.map((piece) => (
                 <div 
                   key={piece.name}
-                  className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+                  className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
                   onClick={() => setSelectedPiece(piece)}
                 >
-                  <div className="flex items-center mb-4">
+                  <div className="flex items-center mb-3 lg:mb-4">
                     <img 
                       src={piece.icon} 
                       alt={`${piece.name} icon`} 
-                      className="w-12 h-12 mr-3" 
+                      className="w-10 h-10 lg:w-12 lg:h-12 mr-3 flex-shrink-0" 
                     />
-                    <h3 className="text-xl font-semibold text-gray-800">{piece.name}</h3>
+                    <h3 className="text-lg lg:text-xl font-semibold text-gray-800">{piece.name}</h3>
                   </div>
                   
-                  <p className="text-gray-600 text-sm mb-4">{piece.description}</p>
+                  <p className="text-gray-600 text-xs lg:text-sm mb-3 lg:mb-4">{piece.description}</p>
                   
                   <div className="space-y-2">
-                    <h4 className="font-medium text-gray-800 text-sm">Key Moves:</h4>
+                    <h4 className="font-medium text-gray-800 text-xs lg:text-sm">Key Moves:</h4>
                     <ul className="text-xs text-gray-600 space-y-1">
                       {piece.movementRules.slice(0, 2).map((rule, index) => (
                         <li key={index}>• {rule}</li>
@@ -313,7 +313,7 @@ const ChessRulesMenu: React.FC = () => {
                   </div>
                   
                   {piece.specialRules && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="mt-2 lg:mt-3 pt-2 lg:pt-3 border-t border-gray-100">
                       <span className="text-xs text-blue-600 font-medium">Special abilities available</span>
                     </div>
                   )}

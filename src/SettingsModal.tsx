@@ -81,15 +81,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg p-8 w-full max-w-md">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold flex items-center">
-            <Settings className="mr-2" /> Game Settings
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div className="bg-white rounded-lg p-4 lg:p-8 w-full max-w-md">
+        <div className="flex justify-between items-center mb-4 lg:mb-6">
+          <h2 className="text-xl lg:text-2xl font-bold flex items-center">
+            <Settings className="mr-2 w-5 h-5 lg:w-6 lg:h-6" /> Game Settings
           </h2>
           <button 
             onClick={onClose}
-            className="text-red-500 hover:bg-red-100 rounded-full p-2"
+            className="text-red-500 hover:bg-red-100 rounded-full p-2 text-sm lg:text-base"
           >
             Close
           </button>
@@ -97,10 +97,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
 
         {/* Master Volume */}
-        <div className="mb-4">
+        <div className="mb-3 lg:mb-4">
           <label className="flex items-center justify-between mb-2">
-            <span>Master Volume</span>
-            {settings.masterVolume === 0 ? <VolumeX /> : <Volume2 />}
+            <span className="text-sm lg:text-base">Master Volume</span>
+            {settings.masterVolume === 0 ? <VolumeX className="w-4 h-4 lg:w-5 lg:h-5" /> : <Volume2 className="w-4 h-4 lg:w-5 lg:h-5" />}
           </label>
           <input
             type="range"
@@ -115,9 +115,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
 
         {/* Sound Effects Volume */}
-        <div className="mb-4">
+        <div className="mb-3 lg:mb-4">
           <label className="flex items-center justify-between mb-2">
-            <span>Sound Effects</span>
+            <span className="text-sm lg:text-base">Sound Effects</span>
             <Switch 
               checked={settings.areSoundEffectsEnabled}
               onCheckedChange={handleToggleSoundEffects}
@@ -137,10 +137,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
 
         {/* Music */}
-        <div className="mb-4">
+        <div className="mb-3 lg:mb-4">
           <label className="flex items-center justify-between mb-2">
-            <span className="flex items-center">
-              <Music className="mr-2" /> Background Music
+            <span className="flex items-center text-sm lg:text-base">
+              <Music className="mr-2 w-4 h-4 lg:w-5 lg:h-5" /> Background Music
             </span>
             <Switch 
               checked={settings.isMusicEnabled}
