@@ -1044,29 +1044,29 @@ const App: React.FC = () => {
 
       <div>
         {/* Captured Pieces */}
-        <div className="flex justify-between w-128 mb-6">
+        <div className="flex justify-between w-96 mb-4">
           <div>
-            <h3 className="text-base font-semibold mb-2">Captured White:</h3>
-            <div className="flex flex-wrap gap-2">
+            <h3 className="text-sm font-semibold mb-2">Captured White:</h3>
+            <div className="flex flex-wrap gap-1">
               {capturedPieces.w.map((piece, i) => (
                 <img
                   key={i}
                   src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
                   alt={`${piece.color}${piece.type}`}
-                  className="w-8 h-8"
+                  className="w-6 h-6"
                 />
               ))}
             </div>
           </div>
           <div>
-            <h3 className="text-base font-semibold mb-2">Captured Black:</h3>
-            <div className="flex flex-wrap gap-2">
+            <h3 className="text-sm font-semibold mb-2">Captured Black:</h3>
+            <div className="flex flex-wrap gap-1">
               {capturedPieces.b.map((piece, i) => (
                 <img
                   key={i}
                   src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
                   alt={`${piece.color}${piece.type}`}
-                  className="w-8 h-8"
+                  className="w-6 h-6"
                 />
               ))}
             </div>
@@ -1084,7 +1084,7 @@ const App: React.FC = () => {
           )}
           
           <div 
-            className="grid grid-cols-8 gap-0 border-4 border-gray-800" 
+            className="grid grid-cols-8 gap-0 border-2 border-gray-800" 
             style={currentTheme.boardTexture ? {
               backgroundImage: `url(/${currentTheme.boardTexture}.jpg)`,
               backgroundSize: 'cover',
@@ -1120,7 +1120,7 @@ const App: React.FC = () => {
               return (
                 <div
                   key={pos}
-                  className={`w-24 h-24 flex items-center justify-center relative cursor-pointer group
+                  className={`w-16 h-16 flex items-center justify-center relative cursor-pointer group
                     ${isDark ? currentTheme.darkSquare : currentTheme.lightSquare}
                     ${isUnderAttack ? 
                       (isDark ? "!bg-red-600" : "!bg-red-300") : ""}
@@ -1144,18 +1144,18 @@ const App: React.FC = () => {
                     <img
                       src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
                       alt={`${piece.color}${piece.type}`}
-                      className="w-16 h-16 pointer-events-none"
+                      className="w-12 h-12 pointer-events-none"
                     />
                   )}
                   {/* File and rank labels */}
                   {colIndex === 0 && (
-                    <span className={`absolute left-2 top-2 text-base font-semibold
+                    <span className={`absolute left-1 top-1 text-xs font-semibold
                       ${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
                       {8 - rowIndex}
                     </span>
                   )}
                   {rowIndex === 7 && (
-                    <span className={`absolute right-2 bottom-2 text-base font-semibold
+                    <span className={`absolute right-1 bottom-1 text-xs font-semibold
                       ${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
                       {String.fromCharCode(97 + colIndex)}
                     </span>
@@ -1242,11 +1242,11 @@ const App: React.FC = () => {
       )}
   
       {/* Side Panel */}
-      <div className="w-80 h-[90vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-6 overflow-y-auto">
-        <div className="space-y-6">
+      <div className="w-64 h-[80vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-4 overflow-y-auto">
+        <div className="space-y-4">
           {/* Game Status */}
           <div className="text-center">
-            <div className={`inline-block px-4 py-2 rounded-lg font-semibold text-white ${
+            <div className={`inline-block px-3 py-1 rounded-lg font-semibold text-white text-sm ${
               isViewingHistory ? "bg-purple-500" :
               gameState === "inactive" ? "bg-gray-500" :
               gameState === "active" ? "bg-green-500" :
@@ -1263,7 +1263,7 @@ const App: React.FC = () => {
             {isViewingHistory && (
               <button
                 onClick={exitHistoryMode}
-                className="mt-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors text-sm"
+                className="mt-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-xs"
               >
                 Return to Current Game
               </button>
@@ -1272,14 +1272,14 @@ const App: React.FC = () => {
 
           {/* Black Player Section */}
     <div
-      className={`p-4 rounded-lg transition-all duration-200 flex justify-between items-center ${
+      className={`p-3 rounded-lg transition-all duration-200 flex justify-between items-center ${
         turn === "b" ? "bg-black/15 scale-105" : ""
       }`}
     >
-      <h2 className="text-2xl font-semibold">Black Player</h2>
+      <h2 className="text-lg font-semibold">Black Player</h2>
           <div className="flex items-center space-x-2">
-            <Clock className="w-5 h-5" />
-            <span className="text-xl font-mono font-semibold">
+            <Clock className="w-4 h-4" />
+            <span className="text-base font-mono font-semibold">
               {formatTime(playerTimes.b)}
             </span>
             </div>
@@ -1289,14 +1289,14 @@ const App: React.FC = () => {
 
           {/* White Player Section */}
     <div
-      className={`p-4 rounded-lg transition-all duration-200 flex justify-between items-center ${
+      className={`p-3 rounded-lg transition-all duration-200 flex justify-between items-center ${
         turn === "w" ? "bg-black/15 scale-105" : ""
       }`}
     >
-      <h2 className="text-2xl font-semibold">White Player</h2>
+      <h2 className="text-lg font-semibold">White Player</h2>
       <div className="flex items-center space-x-2">
-        <Clock className="w-5 h-5" />
-        <span className="text-xl font-mono font-semibold">
+        <Clock className="w-4 h-4" />
+        <span className="text-base font-mono font-semibold">
           {formatTime(playerTimes.w)}
         </span>
       </div>
@@ -1472,11 +1472,11 @@ const App: React.FC = () => {
             </div>
 
             {/* Game Control Buttons */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               {gameState === "inactive" && (
                 <button
                   onClick={startGame}
-                  className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors"
+                  className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors text-sm"
                 >
                   Start Game
                 </button>
@@ -1486,13 +1486,13 @@ const App: React.FC = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={pauseGame}
-                    className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors"
+                    className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors text-xs"
                   >
                     Pause
                   </button>
                   <button
                     onClick={() => endGame()}
-                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors"
+                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
                   >
                     End Game
                   </button>
@@ -1503,13 +1503,13 @@ const App: React.FC = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={resumeGame}
-                    className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors"
+                    className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors text-xs"
                   >
                     Resume
                   </button>
                   <button
                     onClick={() => endGame()}
-                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors"
+                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
                   >
                     End Game
                   </button>
@@ -1519,7 +1519,7 @@ const App: React.FC = () => {
               {(gameState === "ended" || gameState === "paused" || gameState === "active") && (
                 <button
                   onClick={resetGame}
-                  className="w-full bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors"
+                  className="w-full bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors text-sm"
                 >
                   Reset Game
                 </button>
@@ -1527,16 +1527,16 @@ const App: React.FC = () => {
 
               {/* Draw and Resignation Buttons */}
               {gameState === "active" && !isViewingHistory && (
-                <div className="flex gap-2 mt-4">
+                <div className="flex gap-2 mt-3">
                   <button
                     onClick={offerDraw}
-                    className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors text-sm"
+                    className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors text-xs"
                   >
                     Offer Draw
                   </button>
                   <button
                     onClick={resign}
-                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-sm"
+                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
                   >
                     Resign
                   </button>
@@ -1544,13 +1544,13 @@ const App: React.FC = () => {
               )}
             </div>
 
-            <div className="space-y-6 p-6 border-t border-gray-300">
+            <div className="space-y-2 p-3 border-t border-gray-300">
            {/* Existing buttons */}
           <button
             onClick={() => setShowRulesMenu(true)}
-            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors text-sm"
           >
-            Chess Rules & Help
+            About & Rules
           </button>
         </div>
 
@@ -1559,19 +1559,19 @@ const App: React.FC = () => {
       </div>
 
       {/* Move History Panel */}
-      <div className="w-80 h-[90vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-6">
-        <h3 className="text-2xl font-semibold mb-4">Move History</h3>
-        <div className="h-[calc(90vh-120px)] overflow-y-auto border border-gray-200 rounded">
+      <div className="w-64 h-[80vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-4">
+        <h3 className="text-lg font-semibold mb-3">Move History</h3>
+        <div className="h-[calc(80vh-80px)] overflow-y-auto border border-gray-200 rounded">
           {moveHistory.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-500">
+            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
               No moves yet
             </div>
           ) : (
-            <table className="w-full text-base">
+            <table className="w-full text-sm">
               <thead className="sticky top-0 bg-gray-200">
                 <tr>
-                  <th className="px-4 py-2 text-left">Move</th>
-                  <th className="px-4 py-2 text-left">Piece</th>
+                  <th className="px-2 py-1 text-left text-xs">Move</th>
+                  <th className="px-2 py-1 text-left text-xs">Piece</th>
                 </tr>
               </thead>
               <tbody>
@@ -1604,14 +1604,14 @@ const App: React.FC = () => {
                         });
                       }}
                     >
-                      <td className="px-4 py-2">
+                      <td className="px-2 py-1 text-xs">
                         {convertMoveToSAN(move, boardCopy, moveHistory.slice(0, index))}
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-2 py-1">
                         <img
                           src={`/${move.piece.color}${move.piece.type.toUpperCase()}.svg`}
                           alt={`${move.piece.color}${move.piece.type}`}
-                          className="w-6 h-6"
+                          className="w-4 h-4"
                         />
                       </td>
                     </tr>
