@@ -24,4 +24,13 @@ type TimeControl = {
     increment: number;
 };
 
-export type { Color, PieceType, Position, Piece, Board, BoardTheme, TimeControl };
+interface CastlingRights {
+  wKingSide: boolean;
+  wQueenSide: boolean;
+  bKingSide: boolean;
+  bQueenSide: boolean;
+}
+
+type GameEndReason = 'checkmate' | 'stalemate' | 'timeout' | 'insufficient-material' | 'threefold-repetition' | 'fifty-move-rule' | 'draw-agreement' | 'resignation';
+
+export type { Color, PieceType, Position, Piece, Board, BoardTheme, TimeControl, CastlingRights, GameEndReason };

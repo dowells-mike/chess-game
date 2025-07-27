@@ -6,10 +6,15 @@ import {
   getLegalMoves,
   isInCheck,
   isInCheckmate,
+  isInStalemate,
+  hasInsufficientMaterial,
+  isThreefoldRepetition,
+  isFiftyMoveRule,
+  generatePositionString,
   wouldBeInCheck,
   findKing
 } from './chess-check-detection';
-import { BoardTheme, TimeControl} from "./types";
+import { BoardTheme, TimeControl, CastlingRights, GameEndReason} from "./types";
 import SettingsModal, { SoundSettings } from "./SettingsModal";
 import { useSoundManager } from "./useSoundManager";
 
@@ -176,6 +181,23 @@ const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>("inactive");
   const [showThreats, setShowThreats] = useState(false);
   const [isViewingHistory, setIsViewingHistory] = useState(false);
+  
+  // New state for draw conditions
+  const [isStalemate, setIsStalemate] = useState(false);
+  const [isDraw, setIsDraw] = useState(false);
+  const [drawReason, setDrawReason] = useState<GameEndReason | null>(null);
+  const [showDrawModal, setShowDrawModal] = useState(false);
+  const [movesSinceLastCaptureOrPawnMove, setMovesSinceLastCaptureOrPawnMove] = useState(0);
+  const [positionHistory, setPositionHistory] = useState<string[]>([]);
+  const [castlingRights, setCastlingRights] = useState<CastlingRights>({
+    wKingSide: true,
+    wQueenSide: true,
+    bKingSide: true,
+    bQueenSide: true
+  });
+  const [enPassantTarget, setEnPassantTarget] = useState<string | null>(null);
+  const [drawOfferPending, setDrawOfferPending] = useState<'white' | 'black' | null>(null);
+  const [showDrawOfferModal, setShowDrawOfferModal] = useState(false);
   const [animatingPiece, setAnimatingPiece] = useState<{
     piece: Piece;
     from: Position;
@@ -384,10 +406,59 @@ const App: React.FC = () => {
     // Update the board first
     setBoard(newBoard);
     
-    // Check if the opponent is in check or checkmate
+    // Determine next turn
     const nextTurn = turn === "w" ? "b" : "w";
+    
+    // Update castling rights
+    const newCastlingRights = { ...castlingRights };
+    if (piece.type === 'k') {
+      if (piece.color === 'w') {
+        newCastlingRights.wKingSide = false;
+        newCastlingRights.wQueenSide = false;
+      } else {
+        newCastlingRights.bKingSide = false;
+        newCastlingRights.bQueenSide = false;
+      }
+    } else if (piece.type === 'r') {
+      if (piece.color === 'w') {
+        if (fromCol === 0) newCastlingRights.wQueenSide = false;
+        if (fromCol === 7) newCastlingRights.wKingSide = false;
+      } else {
+        if (fromCol === 0) newCastlingRights.bQueenSide = false;
+        if (fromCol === 7) newCastlingRights.bKingSide = false;
+      }
+    }
+    setCastlingRights(newCastlingRights);
+
+    // Update en passant target
+    let newEnPassantTarget: string | null = null;
+    if (piece.type === 'p' && Math.abs(toRow - fromRow) === 2) {
+      // Pawn moved two squares, set en passant target
+      const middleRow = (fromRow + toRow) / 2;
+      newEnPassantTarget = `${middleRow},${toCol}`;
+    }
+    setEnPassantTarget(newEnPassantTarget);
+
+    // Update moves since last capture or pawn move
+    const isCapture = targetPiece !== null;
+    const isPawnMove = piece.type === 'p';
+    const newMovesSinceLastCaptureOrPawnMove = (isCapture || isPawnMove) ? 0 : movesSinceLastCaptureOrPawnMove + 1;
+    setMovesSinceLastCaptureOrPawnMove(newMovesSinceLastCaptureOrPawnMove);
+
+    // Generate position string for repetition checking
+    const positionString = generatePositionString(newBoard, nextTurn, newCastlingRights, newEnPassantTarget);
+    const newPositionHistory = [...positionHistory, positionString];
+    setPositionHistory(newPositionHistory);
+    
+    // Check if the opponent is in check or checkmate
     const isOpponentInCheck = isInCheck(newBoard, nextTurn);
     const isOpponentInCheckmate = isInCheckmate(newBoard, nextTurn);
+    const isOpponentInStalemate = isInStalemate(newBoard, nextTurn);
+    
+    // Check for draw conditions
+    const isInsufficientMaterial = hasInsufficientMaterial(newBoard);
+    const isThreefold = isThreefoldRepetition(newPositionHistory);
+    const isFiftyMove = isFiftyMoveRule(newMovesSinceLastCaptureOrPawnMove);
     
     // Store current game state (for history viewing)
     setCurrentGameBoard(newBoard);
@@ -398,14 +469,34 @@ const App: React.FC = () => {
       playCheckSound();
     }
 
-
-    // Play checkmate sound
+    // Handle game end conditions
     if (isOpponentInCheckmate) {
       playCheckmateSound();
       const winner = turn === 'w' ? 'white' : 'black';
       setCheckmateWinner(winner);
       setShowCheckmateModal(true);
       endGame(winner);
+    } else if (isOpponentInStalemate) {
+      setIsStalemate(true);
+      setIsDraw(true);
+      setDrawReason('stalemate');
+      setShowDrawModal(true);
+      endGame('draw');
+    } else if (isInsufficientMaterial) {
+      setIsDraw(true);
+      setDrawReason('insufficient-material');
+      setShowDrawModal(true);
+      endGame('draw');
+    } else if (isThreefold) {
+      setIsDraw(true);
+      setDrawReason('threefold-repetition');
+      setShowDrawModal(true);
+      endGame('draw');
+    } else if (isFiftyMove) {
+      setIsDraw(true);
+      setDrawReason('fifty-move-rule');
+      setShowDrawModal(true);
+      endGame('draw');
     }
     
     setIsCheck(isOpponentInCheck);
@@ -645,6 +736,23 @@ const App: React.FC = () => {
     setCurrentGameBoard(INITIAL_BOARD);
     setCurrentGameTurn('w');
     
+    // Reset draw condition states
+    setIsStalemate(false);
+    setIsDraw(false);
+    setDrawReason(null);
+    setShowDrawModal(false);
+    setMovesSinceLastCaptureOrPawnMove(0);
+    setPositionHistory([]);
+    setCastlingRights({
+      wKingSide: true,
+      wQueenSide: true,
+      bKingSide: true,
+      bQueenSide: true
+    });
+    setEnPassantTarget(null);
+    setDrawOfferPending(null);
+    setShowDrawOfferModal(false);
+    
     // Reset player times
     setPlayerTimes({
       w: timeControl.initialTime,
@@ -661,9 +769,36 @@ const App: React.FC = () => {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    
-    // You can add additional end game logic here
-    // such as showing a modal with the result
+  };
+
+  const offerDraw = () => {
+    if (gameState === "active") {
+      const player = turn === 'w' ? 'white' : 'black';
+      setDrawOfferPending(player);
+      setShowDrawOfferModal(true);
+    }
+  };
+
+  const acceptDraw = () => {
+    setIsDraw(true);
+    setDrawReason('draw-agreement');
+    setShowDrawModal(true);
+    setShowDrawOfferModal(false);
+    setDrawOfferPending(null);
+    endGame('draw');
+  };
+
+  const declineDraw = () => {
+    setDrawOfferPending(null);
+    setShowDrawOfferModal(false);
+  };
+
+  const resign = () => {
+    const winner = turn === 'w' ? 'black' : 'white';
+    setDrawReason('resignation');
+    setCheckmateWinner(winner);
+    setShowCheckmateModal(true);
+    endGame(winner);
   };
 
   const enterHistoryMode = (historyBoard: Board, historyTurn: Color, historyMove: Move) => {
@@ -857,14 +992,18 @@ const App: React.FC = () => {
       if (playerTimes.w <= 0) {
         // Black wins on time
         stopTimer();
+        setDrawReason('timeout');
+        setCheckmateWinner('black');
+        setShowCheckmateModal(true);
         endGame('black');
-        alert("White ran out of time. Black wins!");
       }
       if (playerTimes.b <= 0) {
         // White wins on time
         stopTimer();
+        setDrawReason('timeout');
+        setCheckmateWinner('white');
+        setShowCheckmateModal(true);
         endGame('white');
-        alert("Black ran out of time. White wins!");
       }
     }
   }, [playerTimes, gameState]);
@@ -1032,9 +1171,17 @@ const App: React.FC = () => {
       {showCheckmateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
           <div className="bg-white p-12 rounded-lg shadow-xl max-w-md">
-            <h2 className="text-4xl font-bold mb-6 text-center">Checkmate!</h2>
+            <h2 className="text-4xl font-bold mb-6 text-center">
+              {drawReason === 'timeout' ? 'Time Out!' : 
+               drawReason === 'resignation' ? 'Resignation!' : 'Checkmate!'}
+            </h2>
             <p className="text-2xl mb-8 text-center">
-              {checkmateWinner === "white" ? "White" : "Black"} wins!
+              {drawReason === 'timeout' 
+                ? `${checkmateWinner === "white" ? "White" : "Black"} wins on time!`
+                : drawReason === 'resignation'
+                ? `${checkmateWinner === "white" ? "White" : "Black"} wins by resignation!`
+                : `${checkmateWinner === "white" ? "White" : "Black"} wins!`
+              }
             </p>
             <div className="flex gap-4 justify-center">
               <button
@@ -1046,6 +1193,37 @@ const App: React.FC = () => {
               <button
                 onClick={() => {
                   setShowCheckmateModal(false);
+                  resetGame();
+                }}
+                className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 text-lg transition-colors"
+              >
+                New Game
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDrawModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white p-12 rounded-lg shadow-xl max-w-md">
+            <h2 className="text-4xl font-bold mb-6 text-center">Draw!</h2>
+            <p className="text-2xl mb-8 text-center">
+              {drawReason === 'stalemate' && 'Stalemate - No legal moves available'}
+              {drawReason === 'insufficient-material' && 'Insufficient material to checkmate'}
+              {drawReason === 'threefold-repetition' && 'Threefold repetition'}
+              {drawReason === 'fifty-move-rule' && 'Fifty-move rule'}
+            </p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => setShowDrawModal(false)}
+                className="bg-gray-600 text-white px-6 py-3 rounded hover:bg-gray-700 text-lg transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setShowDrawModal(false);
                   resetGame();
                 }}
                 className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 text-lg transition-colors"
@@ -1340,6 +1518,24 @@ const App: React.FC = () => {
                   Reset Game
                 </button>
               )}
+
+              {/* Draw and Resignation Buttons */}
+              {gameState === "active" && !isViewingHistory && (
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={offerDraw}
+                    className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors text-sm"
+                  >
+                    Offer Draw
+                  </button>
+                  <button
+                    onClick={resign}
+                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-sm"
+                  >
+                    Resign
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="space-y-6 p-6 border-t border-gray-300">
@@ -1467,6 +1663,32 @@ const App: React.FC = () => {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Draw Offer Modal */}
+      {showDrawOfferModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-lg shadow-xl max-w-md">
+            <h2 className="text-2xl font-bold mb-4 text-center">Draw Offer</h2>
+            <p className="text-lg mb-6 text-center">
+              {drawOfferPending === 'white' ? 'White' : 'Black'} offers a draw.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={declineDraw}
+                className="bg-red-600 text-white px-6 py-3 rounded hover:bg-red-700 text-lg transition-colors"
+              >
+                Decline
+              </button>
+              <button
+                onClick={acceptDraw}
+                className="bg-green-600 text-white px-6 py-3 rounded hover:bg-green-700 text-lg transition-colors"
+              >
+                Accept
+              </button>
+            </div>
           </div>
         </div>
       )}

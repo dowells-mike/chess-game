@@ -274,7 +274,7 @@ const simulateMove = (
     if (!isInCheck(board, color)) {
       return false;
     }
-  
+
     // Try all possible moves for all pieces
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
@@ -290,16 +290,156 @@ const simulateMove = (
         }
       }
     }
-  
+
     // If we get here, no legal moves were found
     return true;
   };
-  
-  // Export all the necessary functions
+
+  // Check if a player is in stalemate
+  const isInStalemate = (board: Board, color: Color): boolean => {
+    // First verify that the player is NOT in check
+    if (isInCheck(board, color)) {
+      return false;
+    }
+
+    // Try all possible moves for all pieces
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = board[row][col];
+        if (piece && piece.color === color) {
+          const pos = `${row},${col}` as `${number},${number}`;
+          const legalMoves = getLegalMoves(pos, piece, board);
+          
+          // If there's at least one legal move, it's not stalemate
+          if (legalMoves.length > 0) {
+            return false;
+          }
+        }
+      }
+    }
+
+    // If we get here, no legal moves were found and not in check = stalemate
+    return true;
+  };
+
+  // Check for insufficient material to deliver checkmate
+  const hasInsufficientMaterial = (board: Board): boolean => {
+    const pieces = { w: [] as string[], b: [] as string[] };
+    
+    // Count all pieces for both sides
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = board[row][col];
+        if (piece && piece.type !== 'k') { // Don't count kings
+          pieces[piece.color].push(piece.type);
+        }
+      }
+    }
+
+    // Sort pieces for easier checking
+    pieces.w.sort();
+    pieces.b.sort();
+
+    // King vs King
+    if (pieces.w.length === 0 && pieces.b.length === 0) {
+      return true;
+    }
+
+    // King + Knight vs King or King + Bishop vs King
+    if ((pieces.w.length === 1 && pieces.b.length === 0 && (pieces.w[0] === 'n' || pieces.w[0] === 'b')) ||
+        (pieces.b.length === 1 && pieces.w.length === 0 && (pieces.b[0] === 'n' || pieces.b[0] === 'b'))) {
+      return true;
+    }
+
+    // King + Bishop vs King + Bishop (same colored squares)
+    if (pieces.w.length === 1 && pieces.b.length === 1 && 
+        pieces.w[0] === 'b' && pieces.b[0] === 'b') {
+      // Check if bishops are on same colored squares
+      let whiteBishopSquareColor: boolean | null = null;
+      let blackBishopSquareColor: boolean | null = null;
+      
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const piece = board[row][col];
+          if (piece && piece.type === 'b') {
+            const isLightSquare = (row + col) % 2 === 0;
+            if (piece.color === 'w') {
+              whiteBishopSquareColor = isLightSquare;
+            } else {
+              blackBishopSquareColor = isLightSquare;
+            }
+          }
+        }
+      }
+      
+      if (whiteBishopSquareColor === blackBishopSquareColor) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Check for threefold repetition
+  const isThreefoldRepetition = (boardHistory: string[]): boolean => {
+    if (boardHistory.length < 8) return false; // Need at least 8 positions for threefold
+    
+    const currentPosition = boardHistory[boardHistory.length - 1];
+    let repetitions = 0;
+    
+    for (const position of boardHistory) {
+      if (position === currentPosition) {
+        repetitions++;
+      }
+    }
+    
+    return repetitions >= 3;
+  };
+
+  // Check for 50-move rule
+  const isFiftyMoveRule = (movesSinceLastCaptureOrPawnMove: number): boolean => {
+    return movesSinceLastCaptureOrPawnMove >= 100; // 50 moves per side = 100 half-moves
+  };
+
+  // Generate a position string for repetition checking
+  const generatePositionString = (board: Board, turn: Color, castlingRights: { wKingSide: boolean, wQueenSide: boolean, bKingSide: boolean, bQueenSide: boolean }, enPassantTarget: string | null): string => {
+    let positionString = '';
+    
+    // Add board state
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = board[row][col];
+        if (piece) {
+          positionString += piece.color + piece.type;
+        } else {
+          positionString += '-';
+        }
+      }
+    }
+    
+    // Add turn
+    positionString += turn;
+    
+    // Add castling rights
+    positionString += castlingRights.wKingSide ? 'K' : '-';
+    positionString += castlingRights.wQueenSide ? 'Q' : '-';
+    positionString += castlingRights.bKingSide ? 'k' : '-';
+    positionString += castlingRights.bQueenSide ? 'q' : '-';
+    
+    // Add en passant target
+    positionString += enPassantTarget || '-';
+    
+    return positionString;
+  };  // Export all the necessary functions
   export {
     getLegalMoves,
     isInCheck,
     isInCheckmate,
+    isInStalemate,
+    hasInsufficientMaterial,
+    isThreefoldRepetition,
+    isFiftyMoveRule,
+    generatePositionString,
     wouldBeInCheck,
     findKing
   };
