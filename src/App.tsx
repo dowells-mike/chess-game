@@ -1396,6 +1396,105 @@ const App: React.FC = () => {
               Return to Current Game
             </button>
           )}
+
+          {/* Mobile Time Control Settings */}
+          <div className="bg-gray-50 rounded-lg p-3 mb-4">
+            <h3 className="text-sm font-semibold mb-2 text-gray-800">Time Control</h3>
+            
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-gray-700">Mode</label>
+                <select 
+                  value={timeControl.mode}
+                  disabled={gameState === "active" || gameState === "paused"}
+                  onChange={(e) => {
+                    const selectedMode = e.target.value as 'blitz' | 'rapid' | 'classical';
+                    const defaultOption = TIME_CONTROL_OPTIONS[selectedMode][1];
+                    const newTimeControl = {
+                      mode: selectedMode,
+                      initialTime: defaultOption.initialTime,
+                      increment: defaultOption.increment
+                    };
+                    
+                    stopTimer();
+                    setTimeControl(newTimeControl);
+                    setSelectedTimeControlOption(defaultOption.name);
+                    setPlayerTimes({
+                      w: defaultOption.initialTime,
+                      b: defaultOption.initialTime
+                    });
+
+                    if (gameState === "active") {
+                      timerRef.current = setInterval(() => {
+                        setPlayerTimes(prev => ({
+                          ...prev,
+                          [turn]: Math.max(0, prev[turn] - 1)
+                        }));
+                      }, 1000);
+                    }
+                  }}
+                  className={`px-2 py-1 border rounded text-xs ${
+                    gameState === "active" || gameState === "paused" 
+                      ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
+                      : ""
+                  }`}
+                >
+                  <option value="blitz">Blitz</option>
+                  <option value="rapid">Rapid</option>
+                  <option value="classical">Classical</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-gray-700">Time</label>
+                <select 
+                  value={selectedTimeControlOption}
+                  disabled={gameState === "active" || gameState === "paused"}
+                  onChange={(e) => {
+                    const selectedOption = TIME_CONTROL_OPTIONS[timeControl.mode].find(
+                      option => option.name === e.target.value
+                    );
+                    
+                    if (selectedOption) {
+                      const newTimeControl = {
+                        mode: timeControl.mode,
+                        initialTime: selectedOption.initialTime,
+                        increment: selectedOption.increment
+                      };
+                      
+                      stopTimer();
+                      setTimeControl(newTimeControl);
+                      setSelectedTimeControlOption(selectedOption.name);
+                      setPlayerTimes({
+                        w: selectedOption.initialTime,
+                        b: selectedOption.initialTime
+                      });
+
+                      if (gameState === "active") {
+                        timerRef.current = setInterval(() => {
+                          setPlayerTimes(prev => ({
+                            ...prev,
+                            [turn]: Math.max(0, prev[turn] - 1)
+                          }));
+                        }, 1000);
+                      }
+                    }
+                  }}
+                  className={`px-2 py-1 border rounded text-xs ${
+                    gameState === "active" || gameState === "paused" 
+                      ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
+                      : ""
+                  }`}
+                >
+                  {TIME_CONTROL_OPTIONS[timeControl.mode].map(option => (
+                    <option key={option.name} value={option.name}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
           
           {/* Mobile Horizontal Move History */}
           <div className="bg-gray-50 rounded-lg p-3">
@@ -1607,29 +1706,6 @@ const App: React.FC = () => {
             </div>
 
             <div className="space-y-6 p-6 border-t border-gray-300">
-              <div className="flex items-center justify-between mb-4">
-                <label className="text-base font-medium">Theme</label>
-                <select 
-                  value={currentTheme.name}
-                  onChange={(e) => {
-                    const selectedTheme = BOARD_THEMES.find(theme => theme.name === e.target.value);
-                    if (selectedTheme) setCurrentTheme(selectedTheme);
-                  }}
-                  className="px-3 py-2 border rounded text-base"
-                >
-                  {BOARD_THEMES.map(theme => (
-                    <option key={theme.name} value={theme.name}>
-                      {theme.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <label className="text-base font-medium">Show Threats</label>
-                <Switch checked={showThreats} onCheckedChange={setShowThreats} />
-              </div>
-
               <div className="flex gap-4 justify-center">
                 <button
                   onClick={handleUndo}
@@ -1876,323 +1952,7 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-      )}      {/* Side Panel */}
-      <div className="w-64 h-[80vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-4 overflow-y-auto">
-        <div className="space-y-4">
-          {/* Game Status */}
-          <div className="text-center">
-            <div className={`inline-block px-3 py-1 rounded-lg font-semibold text-white text-sm ${
-              isViewingHistory ? "bg-purple-500" :
-              gameState === "inactive" ? "bg-gray-500" :
-              gameState === "active" ? "bg-green-500" :
-              gameState === "paused" ? "bg-yellow-500" :
-              "bg-red-500"
-            }`}>
-              {isViewingHistory ? "Viewing History" :
-               gameState === "inactive" ? "Game Not Started" :
-               gameState === "active" ? "Game Active" :
-               gameState === "paused" ? "Game Paused" :
-               "Game Ended"}
-            </div>
-            
-            {isViewingHistory && (
-              <button
-                onClick={exitHistoryMode}
-                className="mt-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-xs"
-              >
-                Return to Current Game
-              </button>
-            )}
-          </div>
-
-          {/* Black Player Section */}
-    <div
-      className={`p-3 rounded-lg transition-all duration-200 flex justify-between items-center ${
-        turn === "b" ? "bg-black/15 scale-105" : ""
-      }`}
-    >
-      <h2 className="text-lg font-semibold">Black Player</h2>
-          <div className="flex items-center space-x-2">
-            <Clock className="w-4 h-4" />
-            <span className="text-base font-mono font-semibold">
-              {formatTime(playerTimes.b)}
-            </span>
-            </div>
-          </div>
-  
-
-
-          {/* White Player Section */}
-    <div
-      className={`p-3 rounded-lg transition-all duration-200 flex justify-between items-center ${
-        turn === "w" ? "bg-black/15 scale-105" : ""
-      }`}
-    >
-      <h2 className="text-lg font-semibold">White Player</h2>
-      <div className="flex items-center space-x-2">
-        <Clock className="w-4 h-4" />
-        <span className="text-base font-mono font-semibold">
-          {formatTime(playerTimes.w)}
-        </span>
-      </div>
-    </div>
-
-
-    {/* Time Control Section */}
-    <div className="border-t border-gray-300 pt-4">
-  <div className="flex items-center justify-between mb-4">
-    <label className="text-base font-medium">Time Control Mode</label>
-    <select 
-      value={timeControl.mode}
-      disabled={gameState === "active" || gameState === "paused"}
-      onChange={(e) => {
-        const selectedMode = e.target.value as 'blitz' | 'rapid' | 'classical';
-        const defaultOption = TIME_CONTROL_OPTIONS[selectedMode][1]; // Select second option as default
-        const newTimeControl = {
-          mode: selectedMode,
-          initialTime: defaultOption.initialTime,
-          increment: defaultOption.increment
-        };
-        
-        // Stop the current timer
-        stopTimer();
-
-        // Update time control
-        setTimeControl(newTimeControl);
-        setSelectedTimeControlOption(defaultOption.name);
-
-        // Reset player times to the new initial time
-        setPlayerTimes({
-          w: defaultOption.initialTime,
-          b: defaultOption.initialTime
-        });
-
-        // Only restart timer if game is already active
-        if (gameState === "active") {
-          timerRef.current = setInterval(() => {
-            setPlayerTimes(prev => ({
-              ...prev,
-              [turn]: Math.max(0, prev[turn] - 1)
-            }));
-          }, 1000);
-        }
-      }}
-      className={`px-3 py-2 border rounded text-base ${
-        gameState === "active" || gameState === "paused" 
-          ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
-          : ""
-      }`}
-    >
-      <option value="blitz">Blitz</option>
-      <option value="rapid">Rapid</option>
-      <option value="classical">Classical</option>
-    </select>
-  </div>
-  
-  <div className="flex items-center justify-between mb-4">
-    <label className="text-base font-medium">Time Control</label>
-    <select 
-      value={selectedTimeControlOption}
-      disabled={gameState === "active" || gameState === "paused"}
-      onChange={(e) => {
-        const selectedOption = TIME_CONTROL_OPTIONS[timeControl.mode].find(
-          option => option.name === e.target.value
-        );
-        
-        if (selectedOption) {
-          const newTimeControl = {
-            mode: timeControl.mode,
-            initialTime: selectedOption.initialTime,
-            increment: selectedOption.increment
-          };
-          
-          // Stop the current timer
-          stopTimer();
-
-          // Update time control
-          setTimeControl(newTimeControl);
-          setSelectedTimeControlOption(selectedOption.name);
-
-          // Reset player times to the new initial time
-          setPlayerTimes({
-            w: selectedOption.initialTime,
-            b: selectedOption.initialTime
-          });
-
-          // Only restart timer if game is already active
-          if (gameState === "active") {
-            timerRef.current = setInterval(() => {
-              setPlayerTimes(prev => ({
-                ...prev,
-                [turn]: Math.max(0, prev[turn] - 1)
-              }));
-            }, 1000);
-          }
-        }
-      }}
-      className={`px-3 py-2 border rounded text-base ${
-        gameState === "active" || gameState === "paused" 
-          ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
-          : ""
-      }`}
-    >
-      {TIME_CONTROL_OPTIONS[timeControl.mode].map(option => (
-        <option key={option.name} value={option.name}>
-          {option.name}
-        </option>
-      ))}
-    </select>
-  </div>
-  
-  <div className="flex items-center justify-between mb-4">
-    <span className="text-sm text-gray-600">
-      Initial Time: {Math.floor(timeControl.initialTime / 60)} min {timeControl.initialTime % 60 > 0 ? `${timeControl.initialTime % 60}s` : ''}
-    </span>
-    <span className="text-sm text-gray-600">
-      Increment: {timeControl.increment} sec
-    </span>
-  </div>
-    </div>
-    
-  
-          <div className="space-y-6 p-6 border-t border-gray-300">
-  
-            <div className="flex items-center justify-between mb-4">
-              <label className="text-base font-medium">Theme</label>
-              <select 
-                value={currentTheme.name}
-                onChange={(e) => {
-                  const selectedTheme = BOARD_THEMES.find(theme => theme.name === e.target.value);
-                  if (selectedTheme) setCurrentTheme(selectedTheme);
-                }}
-                className="px-3 py-2 border rounded text-base"
-              >
-                {BOARD_THEMES.map(theme => (
-                  <option key={theme.name} value={theme.name}>
-                    {theme.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-  
-            <div className="flex items-center justify-between">
-              <label className="text-base font-medium">Show Threats</label>
-              <Switch checked={showThreats} onCheckedChange={setShowThreats} />
-            </div>
-  
-            <div className="flex gap-4 justify-center">
-              <button
-                onClick={handleUndo}
-                disabled={moveHistory.length === 0 || gameState !== "active" || isViewingHistory}
-                className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors group relative"
-                title="Undo move"
-              >
-                <RotateCcw className="w-6 h-6" />
-                <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm py-1 px-3 rounded -top-10 left-1/2 transform -translate-x-1/2">
-                  Undo move
-                </span>
-              </button>
-
-              <button
-                onClick={handleRedo}
-                disabled={redoHistory.length === 0 || gameState !== "active" || isViewingHistory}
-                className="w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 disabled:opacity-50 disabled:hover:bg-green-600 transition-colors group relative"
-                title="Redo move"
-              >
-                <RotateCw className="w-6 h-6" />
-                <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm py-1 px-3 rounded -top-10 left-1/2 transform -translate-x-1/2">
-                  Redo move
-                </span>
-              </button>
-            </div>
-
-            {/* Game Control Buttons */}
-            <div className="space-y-2">
-              {gameState === "inactive" && (
-                <button
-                  onClick={startGame}
-                  className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors text-sm"
-                >
-                  Start Game
-                </button>
-              )}
-              
-              {gameState === "active" && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={pauseGame}
-                    className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors text-xs"
-                  >
-                    Pause
-                  </button>
-                  <button
-                    onClick={() => endGame()}
-                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
-                  >
-                    End Game
-                  </button>
-                </div>
-              )}
-              
-              {gameState === "paused" && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={resumeGame}
-                    className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors text-xs"
-                  >
-                    Resume
-                  </button>
-                  <button
-                    onClick={() => endGame()}
-                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
-                  >
-                    End Game
-                  </button>
-                </div>
-              )}
-              
-              {(gameState === "ended" || gameState === "paused" || gameState === "active") && (
-                <button
-                  onClick={resetGame}
-                  className="w-full bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors text-sm"
-                >
-                  Reset Game
-                </button>
-              )}
-
-              {/* Draw and Resignation Buttons */}
-              {gameState === "active" && !isViewingHistory && (
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={offerDraw}
-                    className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors text-xs"
-                  >
-                    Offer Draw
-                  </button>
-                  <button
-                    onClick={resign}
-                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
-                  >
-                    Resign
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2 p-3 border-t border-gray-300">
-           {/* Existing buttons */}
-          <button
-            onClick={() => setShowRulesMenu(true)}
-            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors text-sm"
-          >
-            About & Rules
-          </button>
-        </div>
-
-          </div>
-        </div>
-      </div>
-  
+      )}
       {promotionState && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4">
           <div className="bg-white p-4 lg:p-6 rounded-lg max-w-md w-full">
@@ -2222,6 +1982,11 @@ const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         initialSettings={soundSettings}
         onSettingsChange={setSoundSettings}
+        currentTheme={currentTheme}
+        onThemeChange={setCurrentTheme}
+        boardThemes={BOARD_THEMES}
+        showThreats={showThreats}
+        onShowThreatsChange={setShowThreats}
       />
 
       {/* Rules Modal */}
