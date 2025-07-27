@@ -1045,18 +1045,8 @@ const App: React.FC = () => {
           b: defaultOption.initialTime
         });
 
-        // Restart the timer for the current player if the game is in progress
-        // or for white if it's the beginning of the game
-        if (moveHistory.length === 0) {
-          // Game hasn't started, start timer for white
-          timerRef.current = setInterval(() => {
-            setPlayerTimes(prev => ({
-              ...prev,
-              w: Math.max(0, prev.w - 1)
-            }));
-          }, 1000);
-        } else {
-          // Game is in progress, start timer for current player
+        // Only restart timer if game is already active
+        if (gameState === "active") {
           timerRef.current = setInterval(() => {
             setPlayerTimes(prev => ({
               ...prev,
@@ -1107,18 +1097,8 @@ const App: React.FC = () => {
             b: selectedOption.initialTime
           });
 
-          // Restart the timer for the current player if the game is in progress
-          // or for white if it's the beginning of the game
-          if (moveHistory.length === 0) {
-            // Game hasn't started, start timer for white
-            timerRef.current = setInterval(() => {
-              setPlayerTimes(prev => ({
-                ...prev,
-                w: Math.max(0, prev.w - 1)
-              }));
-            }, 1000);
-          } else {
-            // Game is in progress, start timer for current player
+          // Only restart timer if game is already active
+          if (gameState === "active") {
             timerRef.current = setInterval(() => {
               setPlayerTimes(prev => ({
                 ...prev,
