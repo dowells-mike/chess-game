@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import ChessRulesMenu from './ChessRulesMenu';
-import { Clock, Settings, RotateCcw, RotateCw } from "lucide-react";
+import { Clock, Settings, RotateCcw, RotateCw, Play, User, Bot } from "lucide-react";
 import * as SwitchPrimitives from "@radix-ui/react-switch";
 import {
   getLegalMoves,
@@ -24,10 +24,13 @@ import {
   TimeControl, 
   CastlingRights, 
   GameEndReason,
-  Move 
+  Move,
+  GameMode,
+  AIDifficulty
 } from "./types";
 import SettingsModal, { SoundSettings } from "./SettingsModal";
 import { useSoundManager } from "./useSoundManager";
+import aiEngine from "./ai-engine";
 
 type GameState = "inactive" | "active" | "paused" | "ended";
 
@@ -202,6 +205,7 @@ const App: React.FC = () => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [showRulesMenu, setShowRulesMenu] = useState(false); // New state for rules menu
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showNewGameModal, setShowNewGameModal] = useState(false);
   const [soundSettings, setSoundSettings] = useState<SoundSettings>({
     masterVolume: 0.5,
     moveVolume: 0.7,
@@ -218,6 +222,13 @@ const App: React.FC = () => {
     playCheckmateSound, 
     playTurnSwitchSound 
   } = useSoundManager(soundSettings);
+
+  // AI and game mode state
+  const [gameMode, setGameMode] = useState<GameMode>('human-vs-human');
+  const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('medium');
+  const [aiColor, setAiColor] = useState<Color>('b'); // AI plays black by default
+  const [isAiThinking, setIsAiThinking] = useState(false);
+  const [aiMoveTimeout, setAiMoveTimeout] = useState<NodeJS.Timeout | null>(null);
 
   // Background music management
   const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
@@ -927,6 +938,195 @@ const App: React.FC = () => {
     }
   };
 
+  // AI move execution
+  const executeAiMove = useCallback(async () => {
+    if (gameMode === 'human-vs-human' || turn !== aiColor || isCheckmate || isStalemate || isAiThinking) {
+      return;
+    }
+    
+    setIsAiThinking(true);
+    
+    // Add delay for better user experience
+    const delay = aiDifficulty === 'easy' ? 500 : 
+                  aiDifficulty === 'medium' ? 1000 : 
+                  aiDifficulty === 'hard' ? 1500 : 2000;
+    
+    const timeout = setTimeout(async () => {
+      try {
+        const aiMove = await aiEngine.getBestMove(board, turn, aiDifficulty);
+        
+        if (aiMove) {
+          // aiMove.from and aiMove.to are already Position strings like "0,1"
+          const fromPos = aiMove.from;
+          const toPos = aiMove.to;
+          
+          // Check if this is a promotion move
+          const [fromRow, fromCol] = fromPos.split(',').map(Number);
+          const [toRow, toCol] = toPos.split(',').map(Number);
+          const piece = board[fromRow][fromCol];
+          
+          if (piece && piece.type === 'p' && (toRow === 0 || toRow === 7)) {
+            // AI promotion - always promote to queen for simplicity
+            handleAiPromotion(fromPos, toPos, 'q');
+          } else {
+            makeMove(fromPos, toPos);
+          }
+        }
+      } catch (error) {
+        console.error('AI move error:', error);
+      } finally {
+        setIsAiThinking(false);
+      }
+    }, delay);
+    
+    setAiMoveTimeout(timeout);
+  }, [board, turn, aiColor, gameMode, isCheckmate, isStalemate, isAiThinking, aiDifficulty]);
+
+  // Handle AI promotion moves
+  const handleAiPromotion = (from: Position, to: Position, promotionPiece: string) => {
+    const [fromRow, fromCol] = from.split(',').map(Number);
+    const [toRow, toCol] = to.split(',').map(Number);
+    const piece = board[fromRow][fromCol];
+    
+    if (!piece) return;
+
+    const targetPiece = board[toRow][toCol];
+    const newBoard = board.map(row => [...row]);
+    
+    // Clear original position and place promoted piece
+    newBoard[fromRow][fromCol] = null;
+    newBoard[toRow][toCol] = { type: promotionPiece as PieceType, color: piece.color };
+
+    // Check game state after move
+    const nextPlayer = turn === 'w' ? 'b' : 'w';
+    const newIsCheck = isInCheck(newBoard, nextPlayer);
+    const newIsCheckmate = newIsCheck && isInCheckmate(newBoard, nextPlayer);
+    const newIsStalemate = !newIsCheck && isInStalemate(newBoard, nextPlayer);
+    
+    // Create move object
+    const move: Move = {
+      piece,
+      startPos: from,
+      endPos: to,
+      capturedPiece: targetPiece,
+      promotionPiece: promotionPiece as PieceType,
+      isCastling: false,
+      isEnPassant: false,
+      san: '' // Will be set below
+    };
+    
+    // Set SAN notation
+    move.san = convertMoveToSAN(move, board, newIsCheck, newIsCheckmate);
+    
+    // Update board and game state
+    setBoard(newBoard);
+    setTurn(nextPlayer);
+    setMoveHistory(prev => [...prev, move]);
+    setRedoHistory([]);
+    
+    // Update captured pieces
+    if (targetPiece) {
+      setCapturedPieces((prev) => ({
+        ...prev,
+        [targetPiece.color]: [...prev[targetPiece.color], targetPiece],
+      }));
+    }
+    
+    // Update game status
+    setIsCheck(newIsCheck);
+    setIsCheckmate(newIsCheckmate);
+    setIsStalemate(newIsStalemate);
+    
+    if (newIsCheckmate) {
+      setCheckmateWinner(turn === 'w' ? 'white' : 'black');
+      setShowCheckmateModal(true);
+      setGameState("ended");
+      playCheckmateSound();
+    } else if (newIsStalemate) {
+      setIsDraw(true);
+      setDrawReason('stalemate');
+      setShowDrawModal(true);
+      setGameState("ended");
+    } else {
+      if (newIsCheck) {
+        playCheckSound();
+      } else {
+        playMoveSound();
+      }
+      playTurnSwitchSound();
+    }
+    
+    setSelectedPos(null);
+  };
+
+  // Trigger AI move when it's AI's turn
+  useEffect(() => {
+    if (gameMode === 'human-vs-ai' && turn === aiColor && !isCheckmate && !isStalemate && !isAiThinking) {
+      executeAiMove();
+    }
+  }, [turn, gameMode, aiColor, isCheckmate, isStalemate, executeAiMove]);
+
+  // Clear AI timeout on component unmount
+  useEffect(() => {
+    return () => {
+      if (aiMoveTimeout) {
+        clearTimeout(aiMoveTimeout);
+      }
+    };
+  }, [aiMoveTimeout]);
+
+  // Start new game with selected settings
+  const startNewGame = (mode: GameMode, difficulty?: AIDifficulty, aiPlayerColor?: Color) => {
+    // Reset all game state
+    setBoard(INITIAL_BOARD);
+    setTurn('w');
+    setSelectedPos(null);
+    setLastMove(null);
+    setCapturedPieces({ w: [], b: [] });
+    setPromotionState(null);
+    setMoveHistory([]);
+    setRedoHistory([]);
+    setIsCheck(false);
+    setIsCheckmate(false);
+    setCheckmateWinner(null);
+    setShowCheckmateModal(false);
+    setGameState("inactive");
+    setIsStalemate(false);
+    setIsDraw(false);
+    setDrawReason(null);
+    setShowDrawModal(false);
+    setMovesSinceLastCaptureOrPawnMove(0);
+    setPositionHistory([]);
+    setCastlingRights({
+      wKingSide: true,
+      wQueenSide: true,
+      bKingSide: true,
+      bQueenSide: true
+    });
+    setEnPassantTarget(null);
+    setDrawOfferPending(null);
+    setShowDrawOfferModal(false);
+    setAnimatingPiece(null);
+    setSelectedHistoryMove(null);
+    setCurrentGameBoard(INITIAL_BOARD);
+    setCurrentGameTurn('w');
+    setIsViewingHistory(false);
+    
+    // Clear AI timeout if exists
+    if (aiMoveTimeout) {
+      clearTimeout(aiMoveTimeout);
+      setAiMoveTimeout(null);
+    }
+    setIsAiThinking(false);
+    
+    // Set game mode and AI settings
+    setGameMode(mode);
+    if (difficulty) setAiDifficulty(difficulty);
+    if (aiPlayerColor) setAiColor(aiPlayerColor);
+    
+    setShowNewGameModal(false);
+  };
+
   const convertMoveToSAN = (
     move: Move, 
     boardBeforeMove: Board, 
@@ -1249,6 +1449,26 @@ const App: React.FC = () => {
              "Ended"}
           </div>
           
+          {/* Game Mode Indicator */}
+          <div className="flex items-center space-x-1 px-2 py-1 bg-blue-100 rounded-lg">
+            {gameMode === 'human-vs-human' ? (
+              <>
+                <User className="w-4 h-4 text-blue-600" />
+                <span className="text-xs text-blue-600">vs</span>
+                <User className="w-4 h-4 text-blue-600" />
+              </>
+            ) : (
+              <>
+                <User className="w-4 h-4 text-blue-600" />
+                <span className="text-xs text-blue-600">vs</span>
+                <Bot className="w-4 h-4 text-red-600" />
+                {isAiThinking && (
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse ml-1"></div>
+                )}
+              </>
+            )}
+          </div>
+          
           {/* Mobile Timer Display */}
           <div className="flex items-center space-x-3">
             <div className={`flex items-center space-x-1 px-2 py-1 rounded text-sm ${
@@ -1266,24 +1486,42 @@ const App: React.FC = () => {
           </div>
         </div>
         
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setShowNewGameModal(true)}
+            className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white"
+            title="New Game"
+          >
+            <Play className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Desktop and Mobile Layout Container */}
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-center lg:gap-8 lg:py-8">
         
-        {/* Settings Button - Desktop Only */}
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="hidden lg:block absolute top-4 right-4 p-2 rounded-full bg-gray-200 hover:bg-gray-300"
-        >
-          <Settings className="w-6 h-6" />
-        </button>
+        {/* Desktop Control Buttons */}
+        <div className="hidden lg:flex absolute top-4 right-4 space-x-2">
+          <button
+            onClick={() => setShowNewGameModal(true)}
+            className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white"
+            title="New Game"
+          >
+            <Play className="w-6 h-6" />
+          </button>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 rounded-full bg-gray-200 hover:bg-gray-300"
+          >
+            <Settings className="w-6 h-6" />
+          </button>
+        </div>
 
         {/* Main Game Area */}
         <div className="flex-1 lg:flex-none lg:order-2 px-4 lg:px-0">
@@ -2164,6 +2402,99 @@ const App: React.FC = () => {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Game Modal */}
+      {showNewGameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black opacity-50" 
+            onClick={() => setShowNewGameModal(false)}
+          ></div>
+          <div className="relative bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+            <h2 className="text-2xl font-bold mb-6 text-center">New Game</h2>
+            
+            {/* Game Mode Selection */}
+            <div className="space-y-4 mb-6">
+              <button
+                onClick={() => startNewGame('human-vs-human')}
+                className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
+              >
+                <div className="flex items-center space-x-2">
+                  <User className="w-6 h-6 text-blue-500" />
+                  <span className="text-gray-400">vs</span>
+                  <User className="w-6 h-6 text-blue-500" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold">Human vs Human</div>
+                  <div className="text-sm text-gray-600">Play against another person</div>
+                </div>
+              </button>
+              
+              <div className="border-2 border-gray-200 rounded-lg p-4">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="flex items-center space-x-2">
+                    <User className="w-6 h-6 text-blue-500" />
+                    <span className="text-gray-400">vs</span>
+                    <Bot className="w-6 h-6 text-red-500" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-semibold">Human vs AI</div>
+                    <div className="text-sm text-gray-600">Play against the computer</div>
+                  </div>
+                </div>
+                
+                {/* AI Difficulty Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2">Difficulty:</label>
+                  <select 
+                    value={aiDifficulty} 
+                    onChange={(e) => setAiDifficulty(e.target.value as AIDifficulty)}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                    <option value="expert">Expert</option>
+                  </select>
+                </div>
+                
+                {/* AI Color Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2">You play as:</label>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setAiColor('b')}
+                      className={`flex-1 p-2 rounded-md border ${aiColor === 'b' ? 'bg-blue-100 border-blue-500' : 'border-gray-300'}`}
+                    >
+                      White
+                    </button>
+                    <button
+                      onClick={() => setAiColor('w')}
+                      className={`flex-1 p-2 rounded-md border ${aiColor === 'w' ? 'bg-blue-100 border-blue-500' : 'border-gray-300'}`}
+                    >
+                      Black
+                    </button>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => startNewGame('human-vs-ai', aiDifficulty, aiColor)}
+                  className="w-full p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Start AI Game
+                </button>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => setShowNewGameModal(false)}
+              className="w-full p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

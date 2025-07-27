@@ -46,4 +46,7 @@ interface CastlingRights {
 
 type GameEndReason = 'checkmate' | 'stalemate' | 'timeout' | 'insufficient-material' | 'threefold-repetition' | 'fifty-move-rule' | 'draw-agreement' | 'resignation';
 
-export type { Color, PieceType, Position, Piece, Board, BoardTheme, TimeControl, CastlingRights, GameEndReason, Move };
+type GameMode = 'human-vs-human' | 'human-vs-ai';
+type AIDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
+
+export type { Color, PieceType, Position, Piece, Board, BoardTheme, TimeControl, CastlingRights, GameEndReason, Move, GameMode, AIDifficulty };
