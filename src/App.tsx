@@ -171,6 +171,8 @@ const App: React.FC = () => {
   const [redoHistory, setRedoHistory] = useState<Move[]>([]);
   const [isCheck, setIsCheck] = useState(false);
   const [isCheckmate, setIsCheckmate] = useState(false);
+  const [checkmateWinner, setCheckmateWinner] = useState<'white' | 'black' | null>(null);
+  const [showCheckmateModal, setShowCheckmateModal] = useState(false);
   const [gameState, setGameState] = useState<GameState>("inactive");
   const [showThreats, setShowThreats] = useState(false);
   const [isViewingHistory, setIsViewingHistory] = useState(false);
@@ -400,7 +402,10 @@ const App: React.FC = () => {
     // Play checkmate sound
     if (isOpponentInCheckmate) {
       playCheckmateSound();
-      endGame(turn === 'w' ? 'white' : 'black');
+      const winner = turn === 'w' ? 'white' : 'black';
+      setCheckmateWinner(winner);
+      setShowCheckmateModal(true);
+      endGame(winner);
     }
     
     setIsCheck(isOpponentInCheck);
@@ -630,6 +635,8 @@ const App: React.FC = () => {
     setRedoHistory([]);
     setIsCheck(false);
     setIsCheckmate(false);
+    setCheckmateWinner(null);
+    setShowCheckmateModal(false);
     setGameState("inactive");
     setPromotionState(null);
     setAnimatingPiece(null);
@@ -959,6 +966,11 @@ const App: React.FC = () => {
               const isLastMoveFrom = lastMove?.from === pos;
               const isLastMoveTo = lastMove?.to === pos;
               const isCurrentPlayerPiece = piece && piece.color === turn;
+              const isKingInCheck = 
+                piece && 
+                piece.type === 'k' && 
+                isCheck && 
+                piece.color === turn;
   
               return (
                 <div
@@ -971,6 +983,7 @@ const App: React.FC = () => {
                     ${isValidTarget && !isAttackableBySelected ? "!bg-green-500" : ""}
                     ${isAttackableBySelected ? "!bg-red-700" : ""}
                     ${isCurrentPlayerPiece ? "hover:!bg-blue-400" : ""}
+                    ${isKingInCheck ? "!bg-red-400 animate-pulse" : ""}
                     transition-colors duration-300
                   `}
                   onClick={() => handleSquareClick(pos)}
@@ -1009,19 +1022,30 @@ const App: React.FC = () => {
         </div>
       )}
   
-      {isCheckmate && (
+      {showCheckmateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-          <div className="bg-white p-12 rounded-lg shadow-xl">
-            <h2 className="text-4xl font-bold mb-6">Checkmate!</h2>
-            <p className="text-2xl mb-8">
-              {turn === "w" ? "Black" : "White"} wins!
+          <div className="bg-white p-12 rounded-lg shadow-xl max-w-md">
+            <h2 className="text-4xl font-bold mb-6 text-center">Checkmate!</h2>
+            <p className="text-2xl mb-8 text-center">
+              {checkmateWinner === "white" ? "White" : "Black"} wins!
             </p>
-            <button
-              onClick={resetGame}
-              className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 text-lg"
-            >
-              New Game
-            </button>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => setShowCheckmateModal(false)}
+                className="bg-gray-600 text-white px-6 py-3 rounded hover:bg-gray-700 text-lg transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setShowCheckmateModal(false);
+                  resetGame();
+                }}
+                className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 text-lg transition-colors"
+              >
+                New Game
+              </button>
+            </div>
           </div>
         </div>
       )}
