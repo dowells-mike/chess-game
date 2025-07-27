@@ -2,19 +2,19 @@
 
 A modern, responsive chess game built with React and TypeScript, featuring Human vs Human and Human vs AI gameplay with multiple difficulty levels.
 
-## 🎮 Features
+## Features
 
 ### Game Modes
 - **Human vs Human**: Traditional two-player chess
 - **Human vs AI**: Play against a computer opponent with configurable difficulty levels
 
-### 🤖 AI Opponent
+### AI Opponent
 - **Multiple Difficulty Levels**: Easy, Medium, Hard, Expert
 - **Time-Aware Decision Making**: AI considers time pressure and remaining time
 - **Professional Chess Evaluation**: Uses piece-square tables and minimax with alpha-beta pruning
 - **Smart Promotion**: AI can promote pawns to different pieces
 
-### ♟️ Chess Features
+### Chess Features
 - **Full Chess Rules**: Complete implementation including special moves
 - **Algebraic Notation**: Standard SAN notation for all moves
 - **PGN Export**: Download games or copy to clipboard
@@ -22,16 +22,16 @@ A modern, responsive chess game built with React and TypeScript, featuring Human
 - **Time Controls**: Various time formats (Blitz, Rapid, Classical)
 - **Game Analysis**: Move history, captured pieces, and game state tracking
 
-### 🎨 User Interface
+### User Interface
 - **Responsive Design**: Works on mobile and desktop
 - **Multiple Themes**: Classic, Wooden, Marble, Vintage, Dark Mode
 - **Sound Effects**: Move sounds, check alerts, and background music
 - **Visual Feedback**: Highlighted moves, check indicators, and threat display
 
-## 🚀 Deployment
+## Deployment
 
 ### Live Demo
-The app is deployed on Render: [Chess Game](https://your-app-url.onrender.com)
+The app is deployed on Render: [Chess Game](https://chess-game-ai.onrender.com/)
 
 ### Deploy Your Own
 1. Fork this repository
@@ -41,7 +41,7 @@ The app is deployed on Render: [Chess Game](https://your-app-url.onrender.com)
    - **Publish Directory**: `build`
    - **Node Version**: 18+
 
-## 🛠️ Local Development
+## Local Development
 
 ### Prerequisites
 - Node.js 16+ 
@@ -77,7 +77,7 @@ npm run build
 
 Builds the app for production to the `build` folder with optimized performance.
 
-## 🎯 How to Play
+## How to Play
 
 1. **Start a New Game**: Click the blue "Play" button
 2. **Choose Mode**: Select Human vs Human or Human vs AI
@@ -85,7 +85,7 @@ Builds the app for production to the `build` folder with optimized performance.
 4. **Make Moves**: Click pieces to select and move them
 5. **Special Features**: Use undo/redo, export PGN, or adjust time controls
 
-## 🧠 AI Implementation
+## AI Implementation
 
 The AI opponent uses a sophisticated chess engine featuring:
 - **Minimax Algorithm** with alpha-beta pruning for move selection
@@ -94,7 +94,7 @@ The AI opponent uses a sophisticated chess engine featuring:
 - **Multiple Difficulty Levels** with different search depths and randomness
 - **Standard Chess Practices** following professional engine design
 
-## 🛡️ Technologies Used
+## Technologies Used
 
 - **React 18** - Modern React with hooks and concurrent features
 - **TypeScript** - Type-safe development
@@ -103,7 +103,7 @@ The AI opponent uses a sophisticated chess engine featuring:
 - **Lucide React** - Beautiful icon library
 - **Custom Chess Engine** - Professional AI implementation
 
-## 📝 License
+## License
 
 This project is open source and available under the MIT License.
 
