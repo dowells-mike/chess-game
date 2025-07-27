@@ -173,12 +173,15 @@ const App: React.FC = () => {
   const [isCheckmate, setIsCheckmate] = useState(false);
   const [gameState, setGameState] = useState<GameState>("inactive");
   const [showThreats, setShowThreats] = useState(false);
+  const [isViewingHistory, setIsViewingHistory] = useState(false);
   const [animatingPiece, setAnimatingPiece] = useState<{
     piece: Piece;
     from: Position;
     to: Position;
   } | null>(null);
   const [selectedHistoryMove, setSelectedHistoryMove] = useState<Move | null>(null);
+  const [currentGameBoard, setCurrentGameBoard] = useState<Board>(INITIAL_BOARD);
+  const [currentGameTurn, setCurrentGameTurn] = useState<Color>('w');
   const [currentTheme, setCurrentTheme] = useState<BoardTheme>(BOARD_THEMES[0]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [showRulesMenu, setShowRulesMenu] = useState(false); // New state for rules menu
@@ -249,8 +252,8 @@ const App: React.FC = () => {
   };
 
   const handleSquareClick = (pos: Position) => {
-    // Prevent moves if game is not active
-    if (gameState !== "active") return;
+    // Prevent moves if game is not active or if viewing history
+    if (gameState !== "active" || isViewingHistory) return;
     
     const [row, col] = pos.split(",").map(Number);
     const piece = board[row][col];
@@ -383,6 +386,10 @@ const App: React.FC = () => {
     const nextTurn = turn === "w" ? "b" : "w";
     const isOpponentInCheck = isInCheck(newBoard, nextTurn);
     const isOpponentInCheckmate = isInCheckmate(newBoard, nextTurn);
+    
+    // Store current game state (for history viewing)
+    setCurrentGameBoard(newBoard);
+    setCurrentGameTurn(nextTurn);
     
     // Play check sound
     if (isOpponentInCheck) {
@@ -627,6 +634,9 @@ const App: React.FC = () => {
     setPromotionState(null);
     setAnimatingPiece(null);
     setSelectedHistoryMove(null);
+    setIsViewingHistory(false);
+    setCurrentGameBoard(INITIAL_BOARD);
+    setCurrentGameTurn('w');
     
     // Reset player times
     setPlayerTimes({
@@ -647,6 +657,31 @@ const App: React.FC = () => {
     
     // You can add additional end game logic here
     // such as showing a modal with the result
+  };
+
+  const enterHistoryMode = (historyBoard: Board, historyTurn: Color, historyMove: Move) => {
+    if (!isViewingHistory) {
+      // Store current game state before entering history mode
+      setCurrentGameBoard(board);
+      setCurrentGameTurn(turn);
+    }
+    
+    setIsViewingHistory(true);
+    setBoard(historyBoard);
+    setTurn(historyTurn);
+    setSelectedHistoryMove(historyMove);
+    setSelectedPos(null); // Clear any selected piece
+  };
+
+  const exitHistoryMode = () => {
+    setIsViewingHistory(false);
+    setBoard(currentGameBoard);
+    setTurn(currentGameTurn);
+    setSelectedHistoryMove(null);
+    setLastMove(moveHistory.length > 0 ? {
+      from: moveHistory[moveHistory.length - 1].startPos,
+      to: moveHistory[moveHistory.length - 1].endPos
+    } : null);
   };
 
   const convertMoveToSAN = (move: Move, board: Board, moveHistory: Move[]): string => {
@@ -871,14 +906,23 @@ const App: React.FC = () => {
         </div>
   
         {/* Board */}
-        <div 
-          className="grid grid-cols-8 gap-0 border-4 border-gray-800" 
-          style={currentTheme.boardTexture ? {
-            backgroundImage: `url(/${currentTheme.boardTexture}.jpg)`,
-            backgroundSize: 'cover',
-            backgroundBlendMode: 'multiply'
-          } : {}}
-        >
+        <div className="relative">
+          {isViewingHistory && (
+            <div className="absolute inset-0 bg-purple-500 bg-opacity-20 rounded-lg z-10 flex items-center justify-center">
+              <div className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold text-lg shadow-lg">
+                History Mode - View Only
+              </div>
+            </div>
+          )}
+          
+          <div 
+            className="grid grid-cols-8 gap-0 border-4 border-gray-800" 
+            style={currentTheme.boardTexture ? {
+              backgroundImage: `url(/${currentTheme.boardTexture}.jpg)`,
+              backgroundSize: 'cover',
+              backgroundBlendMode: 'multiply'
+            } : {}}
+          >
           {board.map((row, rowIndex) =>
             row.map((piece, colIndex) => {
               const pos = `${rowIndex},${colIndex}` as Position;
@@ -940,6 +984,7 @@ const App: React.FC = () => {
             })
           )}
         </div>
+        </div>
       </div>
   
       {isCheck && !isCheckmate && (
@@ -971,16 +1016,27 @@ const App: React.FC = () => {
           {/* Game Status */}
           <div className="text-center">
             <div className={`inline-block px-4 py-2 rounded-lg font-semibold text-white ${
+              isViewingHistory ? "bg-purple-500" :
               gameState === "inactive" ? "bg-gray-500" :
               gameState === "active" ? "bg-green-500" :
               gameState === "paused" ? "bg-yellow-500" :
               "bg-red-500"
             }`}>
-              {gameState === "inactive" ? "Game Not Started" :
+              {isViewingHistory ? "Viewing History" :
+               gameState === "inactive" ? "Game Not Started" :
                gameState === "active" ? "Game Active" :
                gameState === "paused" ? "Game Paused" :
                "Game Ended"}
             </div>
+            
+            {isViewingHistory && (
+              <button
+                onClick={exitHistoryMode}
+                className="mt-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors text-sm"
+              >
+                Return to Current Game
+              </button>
+            )}
           </div>
 
           {/* Black Player Section */}
@@ -1161,7 +1217,7 @@ const App: React.FC = () => {
             <div className="flex gap-4 justify-center">
               <button
                 onClick={handleUndo}
-                disabled={moveHistory.length === 0 || gameState !== "active"}
+                disabled={moveHistory.length === 0 || gameState !== "active" || isViewingHistory}
                 className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors group relative"
                 title="Undo move"
               >
@@ -1173,7 +1229,7 @@ const App: React.FC = () => {
 
               <button
                 onClick={handleRedo}
-                disabled={redoHistory.length === 0 || gameState !== "active"}
+                disabled={redoHistory.length === 0 || gameState !== "active" || isViewingHistory}
                 className="w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 disabled:opacity-50 disabled:hover:bg-green-600 transition-colors group relative"
                 title="Redo move"
               >
@@ -1289,8 +1345,10 @@ const App: React.FC = () => {
                         selectedHistoryMove === move ? 'bg-blue-200' : ''
                       }`}
                       onClick={() => {
-                        setBoard(boardCopy);
-                        setSelectedHistoryMove(move);
+                        // Determine the turn at this point in history
+                        const historyTurn = move.piece.color === 'w' ? 'b' : 'w'; // Turn after this move
+                        
+                        enterHistoryMode(boardCopy, historyTurn, move);
                         setLastMove({
                           from: move.startPos,
                           to: move.endPos
