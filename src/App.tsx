@@ -977,13 +977,20 @@ const App: React.FC = () => {
                   key={pos}
                   className={`w-24 h-24 flex items-center justify-center relative cursor-pointer group
                     ${isDark ? currentTheme.darkSquare : currentTheme.lightSquare}
-                    ${isLastMoveFrom || isLastMoveTo ? "!bg-yellow-300" : ""}
-                    ${isUnderAttack ? "!bg-red-500" : ""}
-                    ${isSelected ? "!bg-blue-500" : ""}
-                    ${isValidTarget && !isAttackableBySelected ? "!bg-green-500" : ""}
-                    ${isAttackableBySelected ? "!bg-red-700" : ""}
-                    ${isCurrentPlayerPiece ? "hover:!bg-blue-400" : ""}
-                    ${isKingInCheck ? "!bg-red-400 animate-pulse" : ""}
+                    ${isUnderAttack ? 
+                      (isDark ? "!bg-red-600" : "!bg-red-300") : ""}
+                    ${isValidTarget && !isAttackableBySelected ? 
+                      (isDark ? "!bg-green-600" : "!bg-green-300") : ""}
+                    ${isSelected ? 
+                      (isDark ? "!bg-blue-600" : "!bg-blue-300") : ""}
+                    ${(isLastMoveFrom || isLastMoveTo) && !isAttackableBySelected ? 
+                      (isDark ? "!bg-yellow-400" : "!bg-yellow-200") : ""}
+                    ${isAttackableBySelected ? 
+                      (isDark ? "!bg-red-700" : "!bg-red-400") : ""}
+                    ${isCurrentPlayerPiece ? 
+                      (isDark ? "hover:!bg-blue-500" : "hover:!bg-blue-200") : ""}
+                    ${isKingInCheck ? 
+                      (isDark ? "!bg-red-500 animate-pulse" : "!bg-red-200 animate-pulse") : ""}
                     transition-colors duration-300
                   `}
                   onClick={() => handleSquareClick(pos)}
