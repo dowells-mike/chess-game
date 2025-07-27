@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import ChessRulesMenu from './ChessRulesMenu';
-import { Clock, Settings } from "lucide-react";
-import { RotateCcw } from "lucide-react";
+import { Clock, Settings, RotateCcw, RotateCw } from "lucide-react";
 import * as SwitchPrimitives from "@radix-ui/react-switch";
 import {
   getLegalMoves,
@@ -168,6 +167,7 @@ const App: React.FC = () => {
   const [capturedPieces, setCapturedPieces] = useState<{ w: Piece[], b: Piece[] }>({ w: [], b: [] });
   const [promotionState, setPromotionState] = useState<PromotionState | null>(null);
   const [moveHistory, setMoveHistory] = useState<Move[]>([]);
+  const [redoHistory, setRedoHistory] = useState<Move[]>([]);
   const [isCheck, setIsCheck] = useState(false);
   const [isCheckmate, setIsCheckmate] = useState(false);
   const [showThreats, setShowThreats] = useState(false);
@@ -419,6 +419,9 @@ const App: React.FC = () => {
         capturedPiece: targetPiece,
       },
     ]);
+    
+    // Clear redo history when a new move is made
+    setRedoHistory([]);
   };
   
   const handlePromotion = (pieceType: PieceType) => {
@@ -477,11 +480,82 @@ const App: React.FC = () => {
   
     setBoard(newBoard);
     setTurn(turn === "w" ? "b" : "w");
+    
+    // Add the undone move to redo history
+    setRedoHistory((prev) => [...prev, lastMove]);
+    
+    // Remove the last move from move history
     setMoveHistory((prev) => prev.slice(0, -1));
     
     // Reset check and checkmate state
     setIsCheck(isInCheck(newBoard, turn === "w" ? "b" : "w"));
     setIsCheckmate(false);
+  };
+
+  const handleRedo = () => {
+    if (redoHistory.length === 0) return;
+  
+    const moveToRedo = redoHistory[redoHistory.length - 1];
+    const [fromRow, fromCol] = moveToRedo.startPos.split(",").map(Number);
+    const [toRow, toCol] = moveToRedo.endPos.split(",").map(Number);
+  
+    const newBoard = board.map((row) => [...row]);
+  
+    // Redo castling
+    if (moveToRedo.piece.type === 'k' && Math.abs(toCol - fromCol) === 2) {
+      if (toCol === 6) { // Kingside castling
+        newBoard[fromRow][5] = newBoard[fromRow][7]; // Move rook
+        newBoard[fromRow][7] = null;
+        newBoard[fromRow][5]!.hasMoved = true;
+      } else if (toCol === 2) { // Queenside castling
+        newBoard[fromRow][3] = newBoard[fromRow][0]; // Move rook
+        newBoard[fromRow][0] = null;
+        newBoard[fromRow][3]!.hasMoved = true;
+      }
+    }
+  
+    // En passant capture redo
+    if (moveToRedo.piece.type === 'p') {
+      const direction = moveToRedo.piece.color === 'w' ? -1 : 1;
+      if (Math.abs(fromCol - toCol) === 1 && !moveToRedo.capturedPiece) {
+        // Remove the captured pawn for en passant
+        newBoard[toRow - direction][toCol] = null;
+        
+        // Find the captured en passant pawn and add it back to captured pieces
+        const capturedEnPassantPawn = { type: 'p' as PieceType, color: moveToRedo.piece.color === 'w' ? 'b' as Color : 'w' as Color };
+        setCapturedPieces((prev) => ({
+          ...prev,
+          [capturedEnPassantPawn.color]: [...prev[capturedEnPassantPawn.color], capturedEnPassantPawn],
+        }));
+      }
+    }
+  
+    newBoard[toRow][toCol] = { ...moveToRedo.piece, hasMoved: true };
+    newBoard[fromRow][fromCol] = null;
+  
+    if (moveToRedo.capturedPiece) {
+      setCapturedPieces((prev) => ({
+        ...prev,
+        [moveToRedo.capturedPiece!.color]: [...prev[moveToRedo.capturedPiece!.color], moveToRedo.capturedPiece!],
+      }));
+    }
+  
+    setBoard(newBoard);
+    setTurn(turn === "w" ? "b" : "w");
+    
+    // Add the redone move back to move history
+    setMoveHistory((prev) => [...prev, moveToRedo]);
+    
+    // Remove the move from redo history
+    setRedoHistory((prev) => prev.slice(0, -1));
+    
+    // Update check and checkmate state
+    const nextTurn = turn === "w" ? "b" : "w";
+    const isOpponentInCheck = isInCheck(newBoard, nextTurn);
+    const isOpponentInCheckmate = isInCheckmate(newBoard, nextTurn);
+    
+    setIsCheck(isOpponentInCheck);
+    setIsCheckmate(isOpponentInCheckmate);
   };
 
   const convertMoveToSAN = (move: Move, board: Board, moveHistory: Move[]): string => {
@@ -816,6 +890,7 @@ const App: React.FC = () => {
                 setLastMove(null);
                 setCapturedPieces({ w: [], b: [] });
                 setMoveHistory([]);
+                setRedoHistory([]);
                 setIsCheck(false);
                 setIsCheckmate(false);
                 
@@ -1029,17 +1104,31 @@ const App: React.FC = () => {
               <Switch checked={showThreats} onCheckedChange={setShowThreats} />
             </div>
   
-            <button
-              onClick={handleUndo}
-              disabled={moveHistory.length === 0}
-              className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors group relative"
-              title="Undo move"
-            >
-              <RotateCcw className="w-6 h-6" />
-              <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm py-1 px-3 rounded -top-10 left-1/2 transform -translate-x-1/2">
-                Undo move
-              </span>
-            </button>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={handleUndo}
+                disabled={moveHistory.length === 0}
+                className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors group relative"
+                title="Undo move"
+              >
+                <RotateCcw className="w-6 h-6" />
+                <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm py-1 px-3 rounded -top-10 left-1/2 transform -translate-x-1/2">
+                  Undo move
+                </span>
+              </button>
+
+              <button
+                onClick={handleRedo}
+                disabled={redoHistory.length === 0}
+                className="w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 disabled:opacity-50 disabled:hover:bg-green-600 transition-colors group relative"
+                title="Redo move"
+              >
+                <RotateCw className="w-6 h-6" />
+                <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm py-1 px-3 rounded -top-10 left-1/2 transform -translate-x-1/2">
+                  Redo move
+                </span>
+              </button>
+            </div>
 
             <div className="space-y-6 p-6 border-t border-gray-300">
            {/* Existing buttons */}
