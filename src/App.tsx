@@ -1650,16 +1650,16 @@ const App: React.FC = () => {
 
       {/* Rules Modal - Add this just before the closing </div> */}
       {showRulesMenu && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div 
             className="absolute inset-0 bg-black opacity-50" 
             onClick={() => setShowRulesMenu(false)}
           ></div>
-          <div className="relative z-60 w-full max-w-6xl max-h-[90vh] overflow-auto">
+          <div className="relative z-60 w-full max-w-4xl max-h-[90vh] overflow-auto">
             <ChessRulesMenu />
             <button 
               onClick={() => setShowRulesMenu(false)}
-              className="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600 transition-colors"
+              className="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600 transition-colors shadow-lg z-10"
             >
               Close
             </button>
