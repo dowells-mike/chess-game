@@ -650,6 +650,11 @@ const App: React.FC = () => {
   };
 
   const handleUndo = () => {
+    // Prevent undo during AI thinking or if it's AI's turn in AI mode
+    if (isAiThinking || (gameMode === 'human-vs-ai' && turn === aiColor)) {
+      return;
+    }
+    
     if (moveHistory.length === 0) return;
   
     const lastMove = moveHistory[moveHistory.length - 1];
@@ -700,9 +705,21 @@ const App: React.FC = () => {
     // Reset check and checkmate state
     setIsCheck(isInCheck(newBoard, turn === "w" ? "b" : "w"));
     setIsCheckmate(false);
+    
+    // Clear AI timeout if it was thinking
+    if (aiMoveTimeout) {
+      clearTimeout(aiMoveTimeout);
+      setAiMoveTimeout(null);
+      setIsAiThinking(false);
+    }
   };
 
   const handleRedo = () => {
+    // Prevent redo during AI thinking or if it's AI's turn in AI mode
+    if (isAiThinking || (gameMode === 'human-vs-ai' && turn === aiColor)) {
+      return;
+    }
+    
     if (redoHistory.length === 0) return;
   
     const moveToRedo = redoHistory[redoHistory.length - 1];
@@ -946,30 +963,51 @@ const App: React.FC = () => {
     
     setIsAiThinking(true);
     
-    // Add delay for better user experience
-    const delay = aiDifficulty === 'easy' ? 500 : 
-                  aiDifficulty === 'medium' ? 1000 : 
-                  aiDifficulty === 'hard' ? 1500 : 2000;
+    // Get AI's remaining time and increment
+    const aiRemainingTime = playerTimes[aiColor];
+    const timeIncrement = timeControl.increment;
+    
+    // Calculate base delay - shorter for time pressure
+    let baseDelay = aiDifficulty === 'easy' ? 500 : 
+                    aiDifficulty === 'medium' ? 1000 : 
+                    aiDifficulty === 'hard' ? 1500 : 2000;
+    
+    // Reduce delay if AI is low on time
+    if (aiRemainingTime < 30) {
+      baseDelay = Math.min(baseDelay, aiRemainingTime * 1000 * 0.1);
+    }
     
     const timeout = setTimeout(async () => {
       try {
-        const aiMove = await aiEngine.getBestMove(board, turn, aiDifficulty);
+        const aiMove = await aiEngine.getBestMove(
+          board, 
+          turn, 
+          aiDifficulty, 
+          5000, // max thinking time
+          aiRemainingTime, // remaining time
+          timeIncrement // increment
+        );
         
         if (aiMove) {
           // aiMove.from and aiMove.to are already Position strings like "0,1"
           const fromPos = aiMove.from;
           const toPos = aiMove.to;
           
-          // Check if this is a promotion move
-          const [fromRow, fromCol] = fromPos.split(',').map(Number);
-          const [toRow, toCol] = toPos.split(',').map(Number);
-          const piece = board[fromRow][fromCol];
-          
-          if (piece && piece.type === 'p' && (toRow === 0 || toRow === 7)) {
-            // AI promotion - always promote to queen for simplicity
-            handleAiPromotion(fromPos, toPos, 'q');
+          // Handle promotion
+          if (aiMove.promotion) {
+            handleAiPromotion(fromPos, toPos, aiMove.promotion);
           } else {
-            makeMove(fromPos, toPos);
+            // Check if this is a promotion move without explicit promotion
+            const [fromRow, fromCol] = fromPos.split(',').map(Number);
+            const [toRow, toCol] = toPos.split(',').map(Number);
+            const piece = board[fromRow][fromCol];
+            
+            if (piece && piece.type === 'p' && (toRow === 0 || toRow === 7)) {
+              // AI promotion - always promote to queen for simplicity
+              handleAiPromotion(fromPos, toPos, 'q');
+            } else {
+              makeMove(fromPos, toPos);
+            }
           }
         }
       } catch (error) {
@@ -977,10 +1015,10 @@ const App: React.FC = () => {
       } finally {
         setIsAiThinking(false);
       }
-    }, delay);
+    }, baseDelay);
     
     setAiMoveTimeout(timeout);
-  }, [board, turn, aiColor, gameMode, isCheckmate, isStalemate, isAiThinking, aiDifficulty]);
+  }, [board, turn, aiColor, gameMode, isCheckmate, isStalemate, isAiThinking, aiDifficulty, playerTimes, timeControl]);
 
   // Handle AI promotion moves
   const handleAiPromotion = (from: Position, to: Position, promotionPiece: string) => {
@@ -1119,12 +1157,25 @@ const App: React.FC = () => {
     }
     setIsAiThinking(false);
     
+    // Reset timer
+    setPlayerTimes({
+      w: timeControl.initialTime,
+      b: timeControl.initialTime
+    });
+    
     // Set game mode and AI settings
     setGameMode(mode);
     if (difficulty) setAiDifficulty(difficulty);
     if (aiPlayerColor) setAiColor(aiPlayerColor);
     
     setShowNewGameModal(false);
+    
+    // If AI plays white, start AI move after a brief delay
+    if (mode === 'human-vs-ai' && aiPlayerColor === 'w') {
+      setTimeout(() => {
+        setGameState("active");
+      }, 100);
+    }
   };
 
   const convertMoveToSAN = (
@@ -1780,7 +1831,7 @@ const App: React.FC = () => {
             <div className="flex gap-2">
               <button
                 onClick={handleUndo}
-                disabled={moveHistory.length === 0 || gameState !== "active" || isViewingHistory}
+                disabled={moveHistory.length === 0 || gameState !== "active" || isViewingHistory || isAiThinking || (gameMode === 'human-vs-ai' && turn === aiColor)}
                 className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors flex items-center justify-center"
                 title="Undo move"
               >
@@ -1789,7 +1840,7 @@ const App: React.FC = () => {
 
               <button
                 onClick={handleRedo}
-                disabled={redoHistory.length === 0 || gameState !== "active" || isViewingHistory}
+                disabled={redoHistory.length === 0 || gameState !== "active" || isViewingHistory || isAiThinking || (gameMode === 'human-vs-ai' && turn === aiColor)}
                 className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:hover:bg-green-600 transition-colors flex items-center justify-center"
                 title="Redo move"
               >
@@ -2119,7 +2170,7 @@ const App: React.FC = () => {
               <div className="flex gap-4 justify-center">
                 <button
                   onClick={handleUndo}
-                  disabled={moveHistory.length === 0 || gameState !== "active" || isViewingHistory}
+                  disabled={moveHistory.length === 0 || gameState !== "active" || isViewingHistory || isAiThinking || (gameMode === 'human-vs-ai' && turn === aiColor)}
                   className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors group relative"
                   title="Undo move"
                 >
@@ -2131,7 +2182,7 @@ const App: React.FC = () => {
 
                 <button
                   onClick={handleRedo}
-                  disabled={redoHistory.length === 0 || gameState !== "active" || isViewingHistory}
+                  disabled={redoHistory.length === 0 || gameState !== "active" || isViewingHistory || isAiThinking || (gameMode === 'human-vs-ai' && turn === aiColor)}
                   className="w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 disabled:opacity-50 disabled:hover:bg-green-600 transition-colors group relative"
                   title="Redo move"
                 >

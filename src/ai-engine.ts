@@ -248,6 +248,26 @@ const simulateMove = (board: Board, move: { from: Position; to: Position }): Boa
   return newBoard;
 };
 
+// Simulate a move with potential promotion
+const simulateMoveWithPromotion = (board: Board, move: { from: Position; to: Position; promotion?: PieceType }): Board => {
+  const newBoard = board.map(row => [...row]);
+  const [fromRow, fromCol] = move.from.split(',').map(Number);
+  const [toRow, toCol] = move.to.split(',').map(Number);
+  
+  const piece = newBoard[fromRow][fromCol];
+  if (!piece) return newBoard;
+  
+  // Handle promotion
+  if (move.promotion) {
+    newBoard[toRow][toCol] = { type: move.promotion, color: piece.color };
+  } else {
+    newBoard[toRow][toCol] = piece;
+  }
+  newBoard[fromRow][fromCol] = null;
+  
+  return newBoard;
+};
+
 // Minimax algorithm with alpha-beta pruning
 const minimax = (
   board: Board,
@@ -315,12 +335,36 @@ export const getBestMove = async (
   board: Board,
   aiColor: Color,
   difficulty: AIDifficulty = 'medium',
-  timeLimit: number = 5000 // milliseconds
-): Promise<{ from: Position; to: Position } | null> => {
+  timeLimit: number = 5000, // milliseconds
+  remainingTime?: number, // AI's remaining time in seconds
+  increment?: number // Time increment per move
+): Promise<{ from: Position; to: Position; promotion?: PieceType } | null> => {
   const config = AI_CONFIGS[difficulty];
   
+  // Adjust thinking time based on remaining time and increment
+  let actualTimeLimit = timeLimit;
+  if (remainingTime !== undefined) {
+    // Use a fraction of remaining time, but ensure minimum thinking time
+    const timePercentage = difficulty === 'easy' ? 0.05 : 
+                          difficulty === 'medium' ? 0.08 :
+                          difficulty === 'hard' ? 0.12 : 0.15;
+    
+    actualTimeLimit = Math.max(
+      500, // Minimum 500ms
+      Math.min(
+        timeLimit,
+        remainingTime * 1000 * timePercentage + (increment || 0) * 1000 * 0.5
+      )
+    );
+    
+    // Emergency mode: if very low on time, use quick move
+    if (remainingTime < 10) {
+      actualTimeLimit = Math.min(500, remainingTime * 100);
+    }
+  }
+  
   // Get all possible moves for the AI
-  const allMoves: { from: Position; to: Position; score?: number }[] = [];
+  const allMoves: { from: Position; to: Position; score?: number; promotion?: PieceType }[] = [];
   for (let row = 0; row < 8; row++) {
     for (let col = 0; col < 8; col++) {
       const piece = board[row][col];
@@ -328,7 +372,21 @@ export const getBestMove = async (
         const pos = `${row},${col}` as Position;
         const legalMoves = getLegalMoves(pos, piece, board);
         for (const move of legalMoves) {
-          allMoves.push({ from: pos, to: move });
+          const [toRow] = move.split(',').map(Number);
+          
+          // Check for pawn promotion
+          if (piece.type === 'p' && (toRow === 0 || toRow === 7)) {
+            // Add promotion options (prioritize queen, then other pieces)
+            ['q', 'r', 'b', 'n'].forEach(promotionPiece => {
+              allMoves.push({ 
+                from: pos, 
+                to: move, 
+                promotion: promotionPiece as PieceType 
+              });
+            });
+          } else {
+            allMoves.push({ from: pos, to: move });
+          }
         }
       }
     }
@@ -345,21 +403,29 @@ export const getBestMove = async (
   
   // Evaluate each move using minimax
   const startTime = Date.now();
+  let movesEvaluated = 0;
+  
   for (const move of allMoves) {
-    if (Date.now() - startTime > timeLimit) break; // Time limit check
+    if (Date.now() - startTime > actualTimeLimit) break; // Time limit check
     
-    const newBoard = simulateMove(board, move);
+    const newBoard = simulateMoveWithPromotion(board, move);
     move.score = minimax(newBoard, config.depth - 1, -Infinity, Infinity, false, aiColor);
+    movesEvaluated++;
   }
   
   // Sort moves by score (best first)
   allMoves.sort((a, b) => (b.score || 0) - (a.score || 0));
   
   // Select from top moves with some randomness
-  const topMoves = allMoves.slice(0, Math.max(1, Math.floor(allMoves.length * 0.2)));
+  const topMovesCount = Math.max(1, Math.floor(allMoves.length * 0.2));
+  const topMoves = allMoves.slice(0, topMovesCount);
   const selectedMove = topMoves[Math.floor(Math.random() * topMoves.length)];
   
-  return { from: selectedMove.from, to: selectedMove.to };
+  return { 
+    from: selectedMove.from, 
+    to: selectedMove.to,
+    ...(selectedMove.promotion && { promotion: selectedMove.promotion })
+  };
 };
 
 // Convert move to standard algebraic notation
