@@ -1014,11 +1014,17 @@ const App: React.FC = () => {
         setShowRulesMenu(false);
       }
     };
-  
+
+    const handleCloseRulesMenu = () => {
+      setShowRulesMenu(false);
+    };
   
     document.addEventListener('keydown', handleEscKey);
+    window.addEventListener('closeRulesMenu', handleCloseRulesMenu);
+    
     return () => {
       document.removeEventListener('keydown', handleEscKey);
+      window.removeEventListener('closeRulesMenu', handleCloseRulesMenu);
       // Cleanup timer on unmount
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -1655,14 +1661,8 @@ const App: React.FC = () => {
             className="absolute inset-0 bg-black opacity-50" 
             onClick={() => setShowRulesMenu(false)}
           ></div>
-          <div className="relative z-60 w-full max-w-4xl max-h-[90vh] overflow-auto">
+          <div className="relative z-60 w-full max-w-5xl max-h-[90vh] overflow-hidden">
             <ChessRulesMenu />
-            <button 
-              onClick={() => setShowRulesMenu(false)}
-              className="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600 transition-colors shadow-lg z-10"
-            >
-              Close
-            </button>
           </div>
         </div>
       )}

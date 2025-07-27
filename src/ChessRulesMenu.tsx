@@ -95,20 +95,52 @@ const PIECE_RULES: PieceRule[] = [
 
 const ChessRulesMenu: React.FC = () => {
   const [selectedPiece, setSelectedPiece] = useState<PieceRule | null>(PIECE_RULES[0]);
-  const [activeSection, setActiveSection] = useState<'about' | 'rules'>('about');
-
+  const [activeSection, setActiveSection] = useState<'about' | 'pieces' | 'rules'>('about');
 
   return (
-    <div className="bg-white shadow-2xl rounded-2xl w-full max-w-4xl overflow-hidden">
-      <div className="flex border-b">
+    <div className="bg-white shadow-2xl rounded-2xl w-full max-w-5xl overflow-hidden">
+      {/* Header with integrated close button */}
+      <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
+        <h1 className="text-2xl font-bold">Chess Guide & Information</h1>
         <button 
-          className={`flex-1 p-4 ${activeSection === 'about' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}`}
+          onClick={() => window.dispatchEvent(new CustomEvent('closeRulesMenu'))}
+          className="p-2 hover:bg-white/20 rounded-full transition-colors"
+          title="Close"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-gray-200 bg-gray-50">
+        <button 
+          className={`flex-1 p-4 font-medium transition-all duration-200 ${
+            activeSection === 'about' 
+              ? 'bg-blue-500 text-white shadow-sm' 
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+          }`}
           onClick={() => setActiveSection('about')}
         >
           About Me
         </button>
         <button 
-          className={`flex-1 p-4 ${activeSection === 'rules' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}`}
+          className={`flex-1 p-4 font-medium transition-all duration-200 ${
+            activeSection === 'pieces' 
+              ? 'bg-blue-500 text-white shadow-sm' 
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+          }`}
+          onClick={() => setActiveSection('pieces')}
+        >
+          Chess Pieces
+        </button>
+        <button 
+          className={`flex-1 p-4 font-medium transition-all duration-200 ${
+            activeSection === 'rules' 
+              ? 'bg-blue-500 text-white shadow-sm' 
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+          }`}
           onClick={() => setActiveSection('rules')}
         >
           Chess Rules
@@ -116,7 +148,9 @@ const ChessRulesMenu: React.FC = () => {
       </div>
 
 
-        {activeSection === 'about' ? (
+      {/* Content Area */}
+      <div className="max-h-[75vh] overflow-y-auto">
+        {activeSection === 'about' && (
           <div className="p-8 max-w-4xl mx-auto">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold mb-3 text-gray-800">About Me</h2>
@@ -242,68 +276,261 @@ const ChessRulesMenu: React.FC = () => {
               </div>
             </div>
           </div>
-        ) : (
-          <div className="flex">
-            {/* Piece Selection Sidebar */}
-            <div className="w-1/4 bg-gray-100 p-4 border-r">
-            {PIECE_RULES.map((piece) => (
-  <button
-    key={piece.name}
-    className={`w-full flex items-center p-3 mb-2 rounded ${
-      selectedPiece?.name === piece.name 
-        ? 'bg-blue-500 text-white' 
-        : 'hover:bg-gray-200'
-    }`}
-    onClick={() => setSelectedPiece(piece)}
-  >
-    <img 
-      src={piece.icon} 
-      alt={`${piece.name} icon`} 
-      className="w-16 h-16" 
-    />
-    <span className="ml-4">{piece.name}</span>
-  </button>
-))}
+        )}
+
+        {activeSection === 'pieces' && (
+          <div className="p-6">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold mb-3 text-gray-800">Chess Pieces</h2>
+              <p className="text-gray-600">Learn about each piece and how they move</p>
             </div>
 
-
-            {/* Piece Details */}
-            {selectedPiece && (
-              <div className="w-3/4 p-8">
-                <div className="flex items-center mb-6">
-                <img 
-        src={selectedPiece.icon} 
-        alt={`${selectedPiece.name} icon`} 
-        className="w-16 h-16 mr-4" 
-      />
-                  <h2 className="text-3xl font-bold ml-4">{selectedPiece.name}</h2>
-                </div>
-                <p className="text-lg mb-4">{selectedPiece.description}</p>
-                
-                <div className="mb-4">
-                  <h3 className="text-xl font-semibold mb-2">Movement Rules:</h3>
-                  <ul className="list-disc pl-6">
-                    {selectedPiece.movementRules.map((rule, index) => (
-                      <li key={index} className="mb-2">{rule}</li>
-                    ))}
-                  </ul>
-                </div>
-
-
-                {selectedPiece.specialRules && (
-                  <div>
-                    <h3 className="text-xl font-semibold mb-2">Special Rules:</h3>
-                    <ul className="list-disc pl-6">
-                      {selectedPiece.specialRules.map((rule, index) => (
-                        <li key={index} className="mb-2">{rule}</li>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {PIECE_RULES.map((piece) => (
+                <div 
+                  key={piece.name}
+                  className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => setSelectedPiece(piece)}
+                >
+                  <div className="flex items-center mb-4">
+                    <img 
+                      src={piece.icon} 
+                      alt={`${piece.name} icon`} 
+                      className="w-12 h-12 mr-3" 
+                    />
+                    <h3 className="text-xl font-semibold text-gray-800">{piece.name}</h3>
+                  </div>
+                  
+                  <p className="text-gray-600 text-sm mb-4">{piece.description}</p>
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-800 text-sm">Key Moves:</h4>
+                    <ul className="text-xs text-gray-600 space-y-1">
+                      {piece.movementRules.slice(0, 2).map((rule, index) => (
+                        <li key={index}>• {rule}</li>
                       ))}
                     </ul>
                   </div>
-                )}
+                  
+                  {piece.specialRules && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <span className="text-xs text-blue-600 font-medium">Special abilities available</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Detailed Piece View */}
+            {selectedPiece && (
+              <div className="mt-8 bg-blue-50 rounded-xl p-6 border border-blue-200">
+                <div className="flex items-center mb-6">
+                  <img 
+                    src={selectedPiece.icon} 
+                    alt={`${selectedPiece.name} icon`} 
+                    className="w-16 h-16 mr-4" 
+                  />
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-800">{selectedPiece.name}</h3>
+                    <p className="text-gray-600">{selectedPiece.description}</p>
+                  </div>
+                </div>
+                
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-lg font-semibold mb-3 text-gray-800">Movement Rules</h4>
+                    <ul className="space-y-2">
+                      {selectedPiece.movementRules.map((rule, index) => (
+                        <li key={index} className="flex items-start">
+                          <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                          <span className="text-gray-700">{rule}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {selectedPiece.specialRules && (
+                    <div>
+                      <h4 className="text-lg font-semibold mb-3 text-gray-800">Special Rules</h4>
+                      <ul className="space-y-2">
+                        {selectedPiece.specialRules.map((rule, index) => (
+                          <li key={index} className="flex items-start">
+                            <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                            <span className="text-gray-700">{rule}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
         )}
+
+        {activeSection === 'rules' && (
+          <div className="p-6">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold mb-3 text-gray-800">Chess Rules</h2>
+              <p className="text-gray-600">Complete guide to playing chess</p>
+            </div>
+
+            <div className="max-w-4xl mx-auto space-y-8">
+              {/* Basic Rules */}
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                <h3 className="text-2xl font-semibold mb-4 text-gray-800 flex items-center">
+                  <span className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm mr-3">1</span>
+                  Basic Rules
+                </h3>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold text-gray-800 mb-2">Game Objective</h4>
+                    <p className="text-gray-600 mb-4">Checkmate your opponent's king by placing it under attack with no escape.</p>
+                    
+                    <h4 className="font-semibold text-gray-800 mb-2">Turn Order</h4>
+                    <p className="text-gray-600">White always moves first, then players alternate turns.</p>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-800 mb-2">Piece Movement</h4>
+                    <p className="text-gray-600 mb-4">Each piece has unique movement patterns. You must move when it's your turn.</p>
+                    
+                    <h4 className="font-semibold text-gray-800 mb-2">Capturing</h4>
+                    <p className="text-gray-600">Capture opponent pieces by moving to their square.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Special Moves */}
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                <h3 className="text-2xl font-semibold mb-4 text-gray-800 flex items-center">
+                  <span className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm mr-3">2</span>
+                  Special Moves
+                </h3>
+                <div className="grid md:grid-cols-3 gap-6">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-800 mb-2">Castling</h4>
+                    <p className="text-gray-600 text-sm mb-2">King and rook move simultaneously for safety.</p>
+                    <ul className="text-xs text-gray-500 space-y-1">
+                      <li>• King hasn't moved</li>
+                      <li>• Rook hasn't moved</li>
+                      <li>• No pieces between them</li>
+                      <li>• King not in check</li>
+                    </ul>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-800 mb-2">En Passant</h4>
+                    <p className="text-gray-600 text-sm mb-2">Special pawn capture move.</p>
+                    <ul className="text-xs text-gray-500 space-y-1">
+                      <li>• Opponent pawn moves 2 squares</li>
+                      <li>• Your pawn is on same rank</li>
+                      <li>• Capture immediately</li>
+                    </ul>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-800 mb-2">Promotion</h4>
+                    <p className="text-gray-600 text-sm mb-2">Pawn reaches opposite end.</p>
+                    <ul className="text-xs text-gray-500 space-y-1">
+                      <li>• Choose Queen, Rook, Bishop, or Knight</li>
+                      <li>• Usually choose Queen</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Game End Conditions */}
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                <h3 className="text-2xl font-semibold mb-4 text-gray-800 flex items-center">
+                  <span className="w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center text-sm mr-3">3</span>
+                  Game End Conditions
+                </h3>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold text-gray-800 mb-3">Winning Conditions</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-start">
+                        <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3"></span>
+                        <div>
+                          <p className="font-medium text-gray-800">Checkmate</p>
+                          <p className="text-sm text-gray-600">King is attacked and cannot escape</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start">
+                        <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3"></span>
+                        <div>
+                          <p className="font-medium text-gray-800">Resignation</p>
+                          <p className="text-sm text-gray-600">Opponent gives up</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start">
+                        <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3"></span>
+                        <div>
+                          <p className="font-medium text-gray-800">Time Out</p>
+                          <p className="text-sm text-gray-600">Opponent runs out of time</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-800 mb-3">Draw Conditions</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-start">
+                        <span className="w-2 h-2 bg-yellow-500 rounded-full mt-2 mr-3"></span>
+                        <div>
+                          <p className="font-medium text-gray-800">Stalemate</p>
+                          <p className="text-sm text-gray-600">No legal moves, king not in check</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start">
+                        <span className="w-2 h-2 bg-yellow-500 rounded-full mt-2 mr-3"></span>
+                        <div>
+                          <p className="font-medium text-gray-800">Insufficient Material</p>
+                          <p className="text-sm text-gray-600">Cannot achieve checkmate</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start">
+                        <span className="w-2 h-2 bg-yellow-500 rounded-full mt-2 mr-3"></span>
+                        <div>
+                          <p className="font-medium text-gray-800">50-Move Rule</p>
+                          <p className="text-sm text-gray-600">50 moves without capture/pawn move</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start">
+                        <span className="w-2 h-2 bg-yellow-500 rounded-full mt-2 mr-3"></span>
+                        <div>
+                          <p className="font-medium text-gray-800">Threefold Repetition</p>
+                          <p className="text-sm text-gray-600">Same position occurs 3 times</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Strategy Tips */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                <h3 className="text-2xl font-semibold mb-4 text-gray-800 flex items-center">
+                  <span className="w-8 h-8 bg-indigo-500 text-white rounded-full flex items-center justify-center text-sm mr-3">💡</span>
+                  Quick Strategy Tips
+                </h3>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-800 mb-2">Opening</h4>
+                    <p className="text-sm text-gray-600">Control the center, develop pieces, castle early</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-800 mb-2">Middle Game</h4>
+                    <p className="text-sm text-gray-600">Improve piece positions, create threats, coordinate attacks</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-800 mb-2">Endgame</h4>
+                    <p className="text-sm text-gray-600">Activate your king, promote pawns, simplify advantageous positions</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
