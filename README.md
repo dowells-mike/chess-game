@@ -6,12 +6,13 @@ A modern, responsive chess game built with React and TypeScript, featuring Human
 
 ### Game Modes
 - **Human vs Human**: Traditional two-player chess
-- **Human vs AI**: Play against a computer opponent with configurable difficulty levels
+- **Human vs AI**: Play against a computer opponent with configurable difficulty levels (Built-in or Stockfish engine)
 
 ### AI Opponent
 - **Multiple Difficulty Levels**: Easy, Medium, Hard, Expert
+- **Engine Choice**: Built-in (fast, lightweight) or Stockfish (strong, GPLv3)
 - **Time-Aware Decision Making**: AI considers time pressure and remaining time
-- **Professional Chess Evaluation**: Uses piece-square tables and minimax with alpha-beta pruning
+- **Professional Chess Evaluation**: Uses piece-square tables and minimax with alpha-beta pruning (built-in engine)
 - **Smart Promotion**: AI can promote pawns to different pieces
 
 ### Chess Features
@@ -48,34 +49,34 @@ The app is deployed on Render: [Chess Game](https://chess-game-ai.onrender.com/)
 - npm or yarn
 
 ### Setup
-
-### Setup
-
 1. Clone the repository:
    ```bash
    git clone <your-repo-url>
    cd chess-game
    ```
-
 2. Install dependencies:
    ```bash
    npm install
    ```
-
 3. Start development server:
    ```bash
    npm start
    ```
-
 4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ### Build for Production
-
 ```bash
 npm run build
 ```
 
 Builds the app for production to the `build` folder with optimized performance.
+
+## Engine Selection
+In Settings > Display tab, choose between:
+- Basic: bundled evaluation engine (MIT)
+- Stockfish: stronger open-source engine (GPLv3)
+
+When Stockfish is selected the bundle includes the Stockfish WASM module and GPL obligations apply to distribution.
 
 ## How to Play
 
@@ -85,14 +86,16 @@ Builds the app for production to the `build` folder with optimized performance.
 4. **Make Moves**: Click pieces to select and move them
 5. **Special Features**: Use undo/redo, export PGN, or adjust time controls
 
-## AI Implementation
+## AI Implementation (Built-in Engine)
+- Minimax with alpha-beta pruning
+- Piece-Square positional tables
+- Basic SAN generation
+- Time-adaptive move selection
 
-The AI opponent uses a sophisticated chess engine featuring:
-- **Minimax Algorithm** with alpha-beta pruning for move selection
-- **Piece-Square Tables** for positional evaluation
-- **Time Management** that adapts to remaining time and increments
-- **Multiple Difficulty Levels** with different search depths and randomness
-- **Standard Chess Practices** following professional engine design
+## Stockfish Integration
+- Uses official `stockfish` WASM build via UCI commands
+- Sends FEN + clock times (wtime/btime + increments)
+- Movetime caps per difficulty for responsiveness
 
 ## Technologies Used
 
@@ -101,42 +104,30 @@ The AI opponent uses a sophisticated chess engine featuring:
 - **Tailwind CSS** - Utility-first styling framework
 - **Radix UI** - Accessible UI components
 - **Lucide React** - Beautiful icon library
-- **Custom Chess Engine** - Professional AI implementation
+- **Custom Built-in Chess Engine** - Professional AI implementation
+- **Optional Stockfish Engine (WASM)** - Strong open-source chess engine
+
+## Engine & Licensing
+Stockfish is licensed under the GNU General Public License v3 (GPLv3). If you distribute a build that includes Stockfish you must:
+- Provide corresponding source code (including build scripts)
+- Preserve copyright and license notices
+- Not impose further restrictions beyond the GPL
+
+Project Strategy:
+- Default code (excluding Stockfish) is MIT licensed
+- Selecting Stockfish dynamically loads the GPLv3 engine
+- Distributing the combined bundle triggers GPL obligations
+
+Avoiding GPL distribution duties:
+1. Ship only the basic engine (remove Stockfish import & selector before build)
+2. Or provide Stockfish via a separate service with clear licensing boundaries
+
+Attribution:
+- Stockfish (https://stockfishchess.org/) © Stockfish developers (GPLv3)
 
 ## License
 
-This project is open source and available under the MIT License.
+The project code (excluding the Stockfish engine) is MIT licensed. See LICENSE file. Stockfish remains under GPLv3.
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
-
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+---
+Generated with create-react-app. Standard CRA scripts for test/build/eject remain available.

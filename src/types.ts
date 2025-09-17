@@ -48,5 +48,6 @@ type GameEndReason = 'checkmate' | 'stalemate' | 'timeout' | 'insufficient-mater
 
 type GameMode = 'human-vs-human' | 'human-vs-ai';
 type AIDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
+type EngineType = 'basic' | 'stockfish';
 
-export type { Color, PieceType, Position, Piece, Board, BoardTheme, TimeControl, CastlingRights, GameEndReason, Move, GameMode, AIDifficulty };
+export type { Color, PieceType, Position, Piece, Board, BoardTheme, TimeControl, CastlingRights, GameEndReason, Move, GameMode, AIDifficulty, EngineType };

@@ -31,6 +31,7 @@ import {
 import SettingsModal, { SoundSettings } from "./SettingsModal";
 import { useSoundManager } from "./useSoundManager";
 import aiEngine from "./ai-engine";
+import stockfishEngine from './stockfish-engine';
 
 type GameState = "inactive" | "active" | "paused" | "ended";
 
@@ -160,6 +161,35 @@ const TIME_CONTROL_OPTIONS = {
   ]
 };
 
+// Helper to convert moves to simple SAN (basic, no full disambiguation)
+function convertMoveToSAN(move: Move, previousBoard: Board, isCheck: boolean, isCheckmate: boolean): string {
+  // Castling
+  if (move.isCastling) {
+    const [, toCol] = move.endPos.split(',').map(Number);
+    return toCol === 6 ? 'O-O' + (isCheckmate ? '#' : isCheck ? '+' : '') : 'O-O-O' + (isCheckmate ? '#' : isCheck ? '+' : '');
+  }
+  const pieceLetter = move.piece.type === 'p' ? '' : move.piece.type.toUpperCase();
+  const capture = move.capturedPiece ? 'x' : '';
+  const [toRow, toCol] = move.endPos.split(',').map(Number);
+  const file = String.fromCharCode(97 + toCol);
+  const rank = 8 - toRow;
+  let san = '';
+  if (move.piece.type === 'p' && move.capturedPiece) {
+    // Pawn capture needs file of origin
+    const fromCol = Number(move.startPos.split(',')[1]);
+    san += String.fromCharCode(97 + fromCol);
+  } else {
+    san += pieceLetter;
+  }
+  san += capture + file + rank;
+  if (move.promotionPiece) {
+    san += '=' + move.promotionPiece.toUpperCase();
+  }
+  if (isCheckmate) san += '#';
+  else if (isCheck) san += '+';
+  return san;
+}
+
 const App: React.FC = () => {
   const [board, setBoard] = useState<Board>(INITIAL_BOARD);
   const [turn, setTurn] = useState<Color>('w');
@@ -226,9 +256,11 @@ const App: React.FC = () => {
   // AI and game mode state
   const [gameMode, setGameMode] = useState<GameMode>('human-vs-human');
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('medium');
-  const [aiColor, setAiColor] = useState<Color>('b'); // AI plays black by default
+  const [playerColor, setPlayerColor] = useState<Color>('w'); // human player's color
+  const aiColor: Color = playerColor === 'w' ? 'b' : 'w'; // AI color derived from player color
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [aiMoveTimeout, setAiMoveTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [engineType, setEngineType] = useState<'basic' | 'stockfish'>('basic');
 
   // Background music management
   const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
@@ -318,8 +350,81 @@ const App: React.FC = () => {
   };
 
   const handleSquareClick = (pos: Position) => {
-    // Prevent moves if game is not active or if viewing history
-    if (gameState !== "active" || isViewingHistory) return;
+    if (gameState !== "active" || isViewingHistory || (gameMode === 'human-vs-ai' && turn === aiColor)) return;
+    
+    const [row, col] = pos.split(",").map(Number);
+    const piece = board[row][col];
+
+    if (selectedPos) {
+      const selectedPiece =
+        board[Number(selectedPos.split(",")[0])][
+          Number(selectedPos.split(",")[1])
+        ];
+      if (selectedPiece && isValidMove(selectedPos, pos)) {
+        const [fromRow, fromCol] = selectedPos.split(",").map(Number);
+        const [toRow, toCol] = pos.split(",").map(Number);
+
+        // Start animation
+        setAnimatingPiece({
+          piece: selectedPiece,
+          from: selectedPos,
+          to: pos,
+        });
+
+        // Set last move for trail highlighting
+        setLastMove({ from: selectedPos, to: pos });
+
+        // Delay the actual move to allow animation to complete
+        setTimeout(() => {
+          makeMove(selectedPos, pos);
+          setAnimatingPiece(null);
+        }, 300); // Match this with CSS transition duration
+      }
+      setSelectedPos(null);
+    } else if (piece && piece.color === turn) {
+      setSelectedPos(pos);
+    }
+  };
+
+  const handleSquarePress = (pos: Position) => {
+    if (gameState !== "active" || isViewingHistory || (gameMode === 'human-vs-ai' && turn === aiColor)) return;
+    
+    const [row, col] = pos.split(",").map(Number);
+    const piece = board[row][col];
+
+    if (selectedPos) {
+      const selectedPiece =
+        board[Number(selectedPos.split(",")[0])][
+          Number(selectedPos.split(",")[1])
+        ];
+      if (selectedPiece && isValidMove(selectedPos, pos)) {
+        const [fromRow, fromCol] = selectedPos.split(",").map(Number);
+        const [toRow, toCol] = pos.split(",").map(Number);
+
+        // Start animation
+        setAnimatingPiece({
+          piece: selectedPiece,
+          from: selectedPos,
+          to: pos,
+        });
+
+        // Set last move for trail highlighting
+        setLastMove({ from: selectedPos, to: pos });
+
+        // Delay the actual move to allow animation to complete
+        setTimeout(() => {
+          makeMove(selectedPos, pos);
+          setAnimatingPiece(null);
+        }, 300); // Match this with CSS transition duration
+      }
+      setSelectedPos(null);
+    } else if (piece && piece.color === turn) {
+      setSelectedPos(pos);
+    }
+  };
+
+  const handleTouchStart = (pos: Position) => {
+    if (gameState !== "active" || isViewingHistory || (gameMode === 'human-vs-ai' && turn === aiColor)) return;
     
     const [row, col] = pos.split(",").map(Number);
     const piece = board[row][col];
@@ -587,7 +692,7 @@ const App: React.FC = () => {
     move.san = convertMoveToSAN(move, board, isOpponentInCheck, isOpponentInCheckmate);
     
     setMoveHistory((prev) => [...prev, move]);
-    
+    // Remove fallback direct trigger; rely on effect only
     // Clear redo history when a new move is made
     setRedoHistory([]);
   };
@@ -957,91 +1062,155 @@ const App: React.FC = () => {
 
   // AI move execution
   const executeAiMove = useCallback(async () => {
-    if (gameMode === 'human-vs-human' || turn !== aiColor || isCheckmate || isStalemate || isAiThinking) {
+    // Guard: only proceed if it's currently the AI's turn
+    if (turn !== aiColor || isCheckmate || isStalemate || isAiThinking) {
+      console.log('AI move skipped', { gameMode, turn, aiColor, isCheckmate, isStalemate, isAiThinking });
       return;
     }
-    
+    console.log('AI thinking start', { engineType, aiColor, turn, difficulty: aiDifficulty, gameMode });
     setIsAiThinking(true);
-    
-    // Get AI's remaining time and increment
+
     const aiRemainingTime = playerTimes[aiColor];
     const timeIncrement = timeControl.increment;
-    
-    // Calculate base delay - shorter for time pressure
-    let baseDelay = aiDifficulty === 'easy' ? 500 : 
-                    aiDifficulty === 'medium' ? 1000 : 
-                    aiDifficulty === 'hard' ? 1500 : 2000;
-    
-    // Reduce delay if AI is low on time
-    if (aiRemainingTime < 30) {
-      baseDelay = Math.min(baseDelay, aiRemainingTime * 1000 * 0.1);
-    }
-    
-    const timeout = setTimeout(async () => {
-      try {
-        const aiMove = await aiEngine.getBestMove(
-          board, 
-          turn, 
-          aiDifficulty, 
-          5000, // max thinking time
-          aiRemainingTime, // remaining time
-          timeIncrement // increment
-        );
-        
-        if (aiMove) {
-          // aiMove.from and aiMove.to are already Position strings like "0,1"
-          const fromPos = aiMove.from;
-          const toPos = aiMove.to;
-          
-          // Handle promotion
-          if (aiMove.promotion) {
-            handleAiPromotion(fromPos, toPos, aiMove.promotion);
-          } else {
-            // Check if this is a promotion move without explicit promotion
-            const [fromRow, fromCol] = fromPos.split(',').map(Number);
-            const [toRow, toCol] = toPos.split(',').map(Number);
-            const piece = board[fromRow][fromCol];
-            
-            if (piece && piece.type === 'p' && (toRow === 0 || toRow === 7)) {
-              // AI promotion - always promote to queen for simplicity
-              handleAiPromotion(fromPos, toPos, 'q');
+
+    if (engineType === 'basic') {
+      let baseDelay = aiDifficulty === 'easy' ? 500 : aiDifficulty === 'medium' ? 1000 : aiDifficulty === 'hard' ? 1500 : 2000;
+      if (aiRemainingTime < 30) {
+        baseDelay = Math.min(baseDelay, aiRemainingTime * 1000 * 0.1);
+      }
+      const timeout = setTimeout(async () => {
+        try {
+          const aiMove = await aiEngine.getBestMove(
+            board,
+            turn,
+            aiDifficulty,
+            5000,
+            aiRemainingTime,
+            timeIncrement
+          );
+          if (aiMove) {
+            const { from, to, promotion } = aiMove;
+            if (promotion) {
+              handleAiPromotion(from, to, promotion);
             } else {
-              makeMove(fromPos, toPos);
+              const [toRow] = to.split(',').map(Number);
+              const [fromRow, fromCol] = from.split(',').map(Number);
+              const piece = board[fromRow][fromCol];
+              if (piece && piece.type === 'p' && (toRow === 0 || toRow === 7)) {
+                handleAiPromotion(from, to, 'q');
+              } else {
+                makeMove(from, to);
+              }
             }
           }
+        } catch (e) {
+          console.error('Basic AI error', e);
+        } finally {
+          setIsAiThinking(false);
         }
-      } catch (error) {
-        console.error('AI move error:', error);
-      } finally {
-        setIsAiThinking(false);
-      }
-    }, baseDelay);
-    
-    setAiMoveTimeout(timeout);
-  }, [board, turn, aiColor, gameMode, isCheckmate, isStalemate, isAiThinking, aiDifficulty, playerTimes, timeControl]);
+      }, baseDelay);
+      setAiMoveTimeout(timeout);
+      return;
+    }
 
-  // Handle AI promotion moves
+    try {
+      const fen = aiEngine.boardToFEN(
+        board,
+        turn,
+        castlingRights,
+        enPassantTarget,
+        0,
+        Math.floor(moveHistory.length / 2) + 1
+      );
+      console.log('Stockfish FEN', fen);
+      const wtime = playerTimes.w * 1000;
+      const btime = playerTimes.b * 1000;
+      const incMs = timeControl.increment * 1000;
+      const moveString = await stockfishEngine.getBestMove(fen, {
+        wtime,
+        btime,
+        winc: incMs,
+        binc: incMs,
+        movetime: aiDifficulty === 'easy' ? 300 : aiDifficulty === 'medium' ? 600 : aiDifficulty === 'hard' ? 1000 : 1500
+      });
+
+      if (moveString && moveString.length >= 4) {
+        const fileToCol = (f: string) => f.charCodeAt(0) - 97;
+        const rankToRow = (r: string) => 8 - parseInt(r, 10);
+        const fromFile = moveString[0];
+        const fromRank = moveString[1];
+        const toFile = moveString[2];
+        const toRank = moveString[3];
+        const promotionChar = moveString[4];
+        const fromPos = `${rankToRow(fromRank)},${fileToCol(fromFile)}` as Position;
+        const toPos = `${rankToRow(toRank)},${fileToCol(toFile)}` as Position;
+        console.log('Stockfish bestmove', moveString, { fromPos, toPos });
+        if (promotionChar) {
+          handleAiPromotion(fromPos, toPos, promotionChar as PieceType);
+        } else {
+          makeMove(fromPos, toPos);
+        }
+      } else {
+        console.warn('Stockfish returned invalid move string', moveString);
+      }
+    } catch (e) {
+      console.warn('Stockfish failed; falling back to basic AI', e);
+      try {
+        const aiMove = await aiEngine.getBestMove(
+          board,
+            turn,
+            aiDifficulty,
+            3000,
+            playerTimes[aiColor],
+            timeControl.increment
+        );
+        if (aiMove) {
+          const { from, to, promotion } = aiMove;
+          if (promotion) {
+            handleAiPromotion(from, to, promotion);
+          } else {
+            makeMove(from, to);
+          }
+        }
+      } catch (be) {
+        console.error('Fallback basic AI also failed', be);
+      }
+    } finally {
+      setIsAiThinking(false);
+    }
+  }, [turn, aiColor, isCheckmate, isStalemate, isAiThinking, engineType, aiDifficulty, playerTimes, timeControl, board, castlingRights, enPassantTarget, moveHistory]);
+
+  // Trigger AI move when it becomes the AI's turn
+  useEffect(() => {
+    if (
+      gameMode === 'human-vs-ai' &&
+      gameState === 'active' &&
+      turn === aiColor &&
+      !isAiThinking &&
+      !isViewingHistory &&
+      !isCheckmate &&
+      !isStalemate &&
+      !promotionState
+    ) {
+      console.log('AI turn detected (effect).', { engineType, aiColor, playerColor, turn });
+      executeAiMove();
+    }
+  }, [turn, gameMode, gameState, aiColor, playerColor, isAiThinking, isViewingHistory, isCheckmate, isStalemate, promotionState, engineType, executeAiMove]);
+
+  // Restored helper: handle AI promotion moves
   const handleAiPromotion = (from: Position, to: Position, promotionPiece: string) => {
     const [fromRow, fromCol] = from.split(',').map(Number);
     const [toRow, toCol] = to.split(',').map(Number);
     const piece = board[fromRow][fromCol];
-    
     if (!piece) return;
-
     const targetPiece = board[toRow][toCol];
     const newBoard = board.map(row => [...row]);
-    
-    // Clear original position and place promoted piece
     newBoard[fromRow][fromCol] = null;
     newBoard[toRow][toCol] = { type: promotionPiece as PieceType, color: piece.color };
-
-    // Check game state after move
     const nextPlayer = turn === 'w' ? 'b' : 'w';
     const newIsCheck = isInCheck(newBoard, nextPlayer);
     const newIsCheckmate = newIsCheck && isInCheckmate(newBoard, nextPlayer);
     const newIsStalemate = !newIsCheck && isInStalemate(newBoard, nextPlayer);
-    
-    // Create move object
     const move: Move = {
       piece,
       startPos: from,
@@ -1050,72 +1219,44 @@ const App: React.FC = () => {
       promotionPiece: promotionPiece as PieceType,
       isCastling: false,
       isEnPassant: false,
-      san: '' // Will be set below
+      san: ''
     };
-    
-    // Set SAN notation
     move.san = convertMoveToSAN(move, board, newIsCheck, newIsCheckmate);
-    
-    // Update board and game state
     setBoard(newBoard);
     setTurn(nextPlayer);
     setMoveHistory(prev => [...prev, move]);
     setRedoHistory([]);
-    
-    // Update captured pieces
     if (targetPiece) {
-      setCapturedPieces((prev) => ({
+      setCapturedPieces(prev => ({
         ...prev,
-        [targetPiece.color]: [...prev[targetPiece.color], targetPiece],
+        [targetPiece.color]: [...prev[targetPiece.color], targetPiece]
       }));
     }
-    
-    // Update game status
     setIsCheck(newIsCheck);
     setIsCheckmate(newIsCheckmate);
     setIsStalemate(newIsStalemate);
-    
     if (newIsCheckmate) {
       setCheckmateWinner(turn === 'w' ? 'white' : 'black');
       setShowCheckmateModal(true);
-      setGameState("ended");
+      setGameState('ended');
       playCheckmateSound();
     } else if (newIsStalemate) {
       setIsDraw(true);
       setDrawReason('stalemate');
       setShowDrawModal(true);
-      setGameState("ended");
+      setGameState('ended');
     } else {
-      if (newIsCheck) {
-        playCheckSound();
-      } else {
-        playMoveSound();
-      }
+      if (newIsCheck) playCheckSound(); else playMoveSound();
       playTurnSwitchSound();
     }
-    
     setSelectedPos(null);
   };
 
-  // Trigger AI move when it's AI's turn
-  useEffect(() => {
-    if (gameMode === 'human-vs-ai' && turn === aiColor && !isCheckmate && !isStalemate && !isAiThinking) {
-      executeAiMove();
-    }
-  }, [turn, gameMode, aiColor, isCheckmate, isStalemate, executeAiMove]);
-
-  // Clear AI timeout on component unmount
-  useEffect(() => {
-    return () => {
-      if (aiMoveTimeout) {
-        clearTimeout(aiMoveTimeout);
-      }
-    };
-  }, [aiMoveTimeout]);
-
-  // Start new game with selected settings
-  const startNewGame = (mode: GameMode, difficulty?: AIDifficulty, aiPlayerColor?: Color) => {
-    // Reset all game state
+  const startNewGame = (mode: GameMode, difficulty?: AIDifficulty, playerClr?: Color) => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setGameMode(mode);
+    if (difficulty) setAiDifficulty(difficulty);
+    if (playerClr) setPlayerColor(playerClr);
     setBoard(INITIAL_BOARD);
     setTurn('w');
     setSelectedPos(null);
@@ -1126,360 +1267,94 @@ const App: React.FC = () => {
     setRedoHistory([]);
     setIsCheck(false);
     setIsCheckmate(false);
-    setCheckmateWinner(null);
-    setShowCheckmateModal(false);
-    setGameState("inactive");
     setIsStalemate(false);
     setIsDraw(false);
     setDrawReason(null);
+    setShowCheckmateModal(false);
     setShowDrawModal(false);
-    setMovesSinceLastCaptureOrPawnMove(0);
-    setPositionHistory([]);
-    setCastlingRights({
-      wKingSide: true,
-      wQueenSide: true,
-      bKingSide: true,
-      bQueenSide: true
-    });
+    setPlayerTimes({ w: timeControl.initialTime, b: timeControl.initialTime });
+    setCastlingRights({ wKingSide: true, wQueenSide: true, bKingSide: true, bQueenSide: true });
     setEnPassantTarget(null);
-    setDrawOfferPending(null);
-    setShowDrawOfferModal(false);
-    setAnimatingPiece(null);
-    setSelectedHistoryMove(null);
-    setCurrentGameBoard(INITIAL_BOARD);
-    setCurrentGameTurn('w');
-    setIsViewingHistory(false);
-    
-    // Clear AI timeout if exists
-    if (aiMoveTimeout) {
-      clearTimeout(aiMoveTimeout);
-      setAiMoveTimeout(null);
-    }
-    setIsAiThinking(false);
-    
-    // Reset timer
-    setPlayerTimes({
-      w: timeControl.initialTime,
-      b: timeControl.initialTime
-    });
-    
-    // Set game mode and AI settings
-    setGameMode(mode);
-    if (difficulty) setAiDifficulty(difficulty);
-    if (aiPlayerColor) setAiColor(aiPlayerColor);
-    
+    setPositionHistory([]);
+    setMovesSinceLastCaptureOrPawnMove(0);
+    setGameState('active');
+    timerRef.current = setInterval(() => {
+      setPlayerTimes(prev => ({ ...prev, w: Math.max(0, prev.w - 1) }));
+    }, 1000);
     setShowNewGameModal(false);
     
-    // If AI plays white, start AI move after a brief delay
-    if (mode === 'human-vs-ai' && aiPlayerColor === 'w') {
-      setTimeout(() => {
-        setGameState("active");
-      }, 100);
+    // Handle AI first move for when human plays as black
+    if (mode === 'human-vs-ai') {
+      const finalPlayerColor = playerClr || playerColor;
+      if (finalPlayerColor === 'b') {
+        // Player chose black, so AI (white) moves first
+        // Use longer timeout to ensure all state updates have completed
+        setTimeout(() => {
+          executeAiMove();
+        }, 150);
+      }
     }
   };
 
-  const convertMoveToSAN = (
-    move: Move, 
-    boardBeforeMove: Board, 
-    isCheck: boolean = false, 
-    isCheckmate: boolean = false
-  ): string => {
-    const { piece, startPos, endPos, capturedPiece, promotionPiece, isCastling, isEnPassant } = move;
-    const [fromRow, fromCol] = startPos.split(',').map(Number);
-    const [toRow, toCol] = endPos.split(',').map(Number);
-    
-    // Convert numeric coordinates to chess notation
-    const fromFile = String.fromCharCode(97 + fromCol);
-    const fromRank = 8 - fromRow;
-    const toFile = String.fromCharCode(97 + toCol);
-    const toRank = 8 - toRow;
-    
-    // Handle castling
-    if (isCastling || (piece.type === 'k' && Math.abs(fromCol - toCol) === 2)) {
-      const notation = toCol > fromCol ? 'O-O' : 'O-O-O';
-      return notation + (isCheckmate ? '#' : isCheck ? '+' : '');
-    }
-    
-    // Handle pawn moves
-    if (piece.type === 'p') {
-      let notation = '';
-      
-      // Capture or en passant
-      if (capturedPiece || isEnPassant) {
-        notation = `${fromFile}x${toFile}${toRank}`;
-        if (isEnPassant) {
-          notation += ' e.p.';
-        }
-      } else {
-        // Regular pawn move
-        notation = `${toFile}${toRank}`;
-      }
-      
-      // Promotion
-      if (promotionPiece) {
-        notation += `=${promotionPiece.toUpperCase()}`;
-      }
-      
-      return notation + (isCheckmate ? '#' : isCheck ? '+' : '');
-    }
-    
-    // Handle other pieces (N, B, R, Q, K)
-    const pieceSymbol = piece.type.toUpperCase();
-    let notation = pieceSymbol;
-    
-    // Find disambiguation needed
-    const similarPieces: Array<{piece: Piece, pos: Position}> = [];
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        const boardPiece = boardBeforeMove[row][col];
-        const pos = `${row},${col}` as Position;
-        if (boardPiece && 
-            boardPiece.type === piece.type && 
-            boardPiece.color === piece.color && 
-            pos !== startPos) {
-          const moves = getLegalMoves(pos, boardPiece, boardBeforeMove);
-          if (moves.includes(endPos)) {
-            similarPieces.push({ piece: boardPiece, pos });
-          }
-        }
-      }
-    }
-    
-    // Add disambiguation if needed
-    if (similarPieces.length > 0) {
-      const sameFile = similarPieces.some(sp => sp.pos.split(',')[1] === fromCol.toString());
-      const sameRank = similarPieces.some(sp => sp.pos.split(',')[0] === fromRow.toString());
-      
-      if (!sameFile) {
-        notation += fromFile;
-      } else if (!sameRank) {
-        notation += fromRank;
-      } else {
-        notation += fromFile + fromRank;
-      }
-    }
-    
-    // Add capture symbol
-    if (capturedPiece) {
-      notation += 'x';
-    }
-    
-    // Add destination
-    notation += toFile + toRank;
-    
-    // Add check/checkmate
-    if (isCheckmate) {
-      notation += '#';
-    } else if (isCheck) {
-      notation += '+';
-    }
-    
-    return notation;
+  // Timer helpers (restored)
+  const stopTimer = () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  };
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2,'0')}`;
   };
 
-  // PGN Export functionality
+  // PGN Export helpers (restored)
   const exportToPGN = (): string => {
     const date = new Date();
     const formattedDate = date.toISOString().split('T')[0].replace(/-/g, '.');
     const timeControlString = `${Math.floor(timeControl.initialTime / 60)}+${timeControl.increment}`;
-    
-    // PGN Headers
     let pgn = '[Event "Local Chess Game"]\n';
     pgn += '[Site "Chess App"]\n';
     pgn += `[Date "${formattedDate}"]\n`;
     pgn += '[Round "1"]\n';
     pgn += '[White "Player 1"]\n';
     pgn += '[Black "Player 2"]\n';
-    
-    // Game result
-    let result = '*'; // Ongoing game
+    let result = '*';
     if (gameState === 'ended') {
-      if (checkmateWinner === 'white') {
-        result = '1-0';
-      } else if (checkmateWinner === 'black') {
-        result = '0-1';
-      } else if (isDraw) {
-        result = '1/2-1/2';
-      }
+      if (checkmateWinner === 'white') result = '1-0';
+      else if (checkmateWinner === 'black') result = '0-1';
+      else if (isDraw) result = '1/2-1/2';
     }
     pgn += `[Result "${result}"]\n`;
-    
-    // Additional headers
     pgn += `[TimeControl "${timeControlString}"]\n`;
     pgn += `[Mode "${timeControl.mode}"]\n`;
-    if (drawReason) {
-      pgn += `[Termination "${drawReason}"]\n`;
-    }
+    if (drawReason) pgn += `[Termination "${drawReason}"]\n`;
     pgn += '\n';
-    
-    // Move text
-    if (moveHistory.length === 0) {
-      pgn += result;
-      return pgn;
-    }
-    
-    // Process moves in pairs (white and black)
-    for (let i = 0; i < moveHistory.length; i += 2) {
-      const moveNumber = Math.floor(i / 2) + 1;
+    if (moveHistory.length === 0) { pgn += result; return pgn; }
+    for (let i=0;i<moveHistory.length;i+=2){
+      const moveNumber = Math.floor(i/2)+1;
       const whiteMove = moveHistory[i];
-      const blackMove = moveHistory[i + 1];
-      
+      const blackMove = moveHistory[i+1];
       pgn += `${moveNumber}.`;
-      
-      if (whiteMove) {
-        pgn += ` ${whiteMove.san}`;
-      }
-      
-      if (blackMove) {
-        pgn += ` ${blackMove.san}`;
-      }
-      
+      if (whiteMove) pgn += ` ${whiteMove.san}`;
+      if (blackMove) pgn += ` ${blackMove.san}`;
       pgn += ' ';
-      
-      // Add line break every 8 moves for readability
-      if (moveNumber % 8 === 0) {
-        pgn += '\n';
-      }
+      if (moveNumber % 8 === 0) pgn += '\n';
     }
-    
-    // Add final result
-    pgn += result;
-    
-    return pgn;
+    pgn += result; return pgn;
   };
-
   const downloadPGN = () => {
     const pgnContent = exportToPGN();
     const blob = new Blob([pgnContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url;
-    link.download = `chess-game-${new Date().toISOString().split('T')[0]}.pgn`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    link.href = url; link.download = `chess-game-${new Date().toISOString().split('T')[0]}.pgn`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
   };
-
   const copyPGNToClipboard = async () => {
-    const pgnContent = exportToPGN();
-    try {
-      await navigator.clipboard.writeText(pgnContent);
-      // You could add a toast notification here
-      console.log('PGN copied to clipboard');
-    } catch (err) {
-      console.error('Failed to copy PGN to clipboard:', err);
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea');
-      textArea.value = pgnContent;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
+    const pgn = exportToPGN();
+    try { await navigator.clipboard.writeText(pgn); } catch {
+      const ta = document.createElement('textarea'); ta.value = pgn; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
     }
   };
-
-  // Start the timer when the game begins or a move is made
-  const startTimer = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-
-
-    timerRef.current = setInterval(() => {
-      setPlayerTimes(prev => ({
-        ...prev,
-        [turn]: Math.max(0, prev[turn] - 1)
-      }));
-    }, 1000);
-  };
-
-  // Stop the timer
-  const stopTimer = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  };
-
-  const addTimeIncrement = () => {
-    setPlayerTimes(prev => ({
-      ...prev,
-      [turn]: prev[turn] + timeControl.increment
-    }));
-  };
-
-  // Format time to MM:SS
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
-  // Reset timer when starting a new game
-  const resetTimer = () => {
-    stopTimer();
-    setPlayerTimes({
-      w: timeControl.initialTime,
-      b: timeControl.initialTime
-    });
-    
-    // Start timer for white player
-    timerRef.current = setInterval(() => {
-      setPlayerTimes(prev => ({
-        ...prev,
-        w: Math.max(0, prev.w - 1)
-      }));
-    }, 1000);
-  };
-
-  // Check for time out
-  useEffect(() => {
-    if (gameState === "active") {
-      if (playerTimes.w <= 0) {
-        // Black wins on time
-        stopTimer();
-        setDrawReason('timeout');
-        setCheckmateWinner('black');
-        setShowCheckmateModal(true);
-        endGame('black');
-      }
-      if (playerTimes.b <= 0) {
-        // White wins on time
-        stopTimer();
-        setDrawReason('timeout');
-        setCheckmateWinner('white');
-        setShowCheckmateModal(true);
-        endGame('white');
-      }
-    }
-  }, [playerTimes, gameState]);
-
-  useEffect(() => {
-    const handleEscKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showRulesMenu) {
-        setShowRulesMenu(false);
-      }
-    };
-
-    const handleCloseRulesMenu = () => {
-      setShowRulesMenu(false);
-    };
-  
-    document.addEventListener('keydown', handleEscKey);
-    window.addEventListener('closeRulesMenu', handleCloseRulesMenu);
-    
-    return () => {
-      document.removeEventListener('keydown', handleEscKey);
-      window.removeEventListener('closeRulesMenu', handleCloseRulesMenu);
-      // Cleanup timer on unmount
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      // Cleanup background music on unmount
-      if (backgroundMusicRef.current) {
-        backgroundMusicRef.current.pause();
-      }
-    };
-  }, [showRulesMenu]);
 
   return (
     <div className={`min-h-screen ${currentTheme.background}`}>
@@ -1932,6 +1807,7 @@ const App: React.FC = () => {
                       });
 
                       if (gameState === "active") {
+                                              
                         timerRef.current = setInterval(() => {
                           setPlayerTimes(prev => ({
                             ...prev,
@@ -2008,6 +1884,7 @@ const App: React.FC = () => {
           <div className="space-y-4">
             {/* Game Status */}
             <div className="text-center">
+
               <div className={`inline-block px-3 py-1 rounded-lg font-semibold text-white text-sm ${
                 isViewingHistory ? "bg-purple-500" :
                 gameState === "inactive" ? "bg-gray-500" :
@@ -2512,27 +2389,26 @@ const App: React.FC = () => {
                   </select>
                 </div>
                 
-                {/* AI Color Selection */}
+                {/* Player Color Selection */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium mb-2">You play as:</label>
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => setAiColor('b')}
-                      className={`flex-1 p-2 rounded-md border ${aiColor === 'b' ? 'bg-blue-100 border-blue-500' : 'border-gray-300'}`}
+                      onClick={() => setPlayerColor('w')}
+                      className={`flex-1 p-2 rounded-md border ${playerColor === 'w' ? 'bg-blue-100 border-blue-500' : 'border-gray-300'}`}
                     >
                       White
                     </button>
                     <button
-                      onClick={() => setAiColor('w')}
-                      className={`flex-1 p-2 rounded-md border ${aiColor === 'w' ? 'bg-blue-100 border-blue-500' : 'border-gray-300'}`}
+                      onClick={() => setPlayerColor('b')}
+                      className={`flex-1 p-2 rounded-md border ${playerColor === 'b' ? 'bg-blue-100 border-blue-500' : 'border-gray-300'}`}
                     >
                       Black
                     </button>
                   </div>
                 </div>
-                
                 <button
-                  onClick={() => startNewGame('human-vs-ai', aiDifficulty, aiColor)}
+                  onClick={() => startNewGame('human-vs-ai', aiDifficulty, playerColor)}
                   className="w-full p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                 >
                   Start AI Game
@@ -2561,6 +2437,8 @@ const App: React.FC = () => {
         boardThemes={BOARD_THEMES}
         showThreats={showThreats}
         onShowThreatsChange={setShowThreats}
+        engineType={engineType}
+        onEngineTypeChange={setEngineType}
       />
 
       {/* Rules Modal */}
