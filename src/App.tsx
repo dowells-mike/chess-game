@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import ChessRulesMenu from './ChessRulesMenu';
 import GameSetupControls from './GameSetupControls';
-import { Clock, Settings, RotateCcw, RotateCw, Play, User, Bot } from "lucide-react";
+import { Clock, Settings, RotateCcw, RotateCw, Play, User, Bot, Pause, Flag, Handshake, Download, Copy as CopyIcon, ChevronDown } from "lucide-react";
 import * as SwitchPrimitives from "@radix-ui/react-switch";
 import {
   getLegalMoves,
@@ -160,6 +160,433 @@ const TIME_CONTROL_OPTIONS = {
     { name: '60+30', initialTime: 3600, increment: 30 },
     { name: '90+30', initialTime: 5400, increment: 30 }
   ]
+};
+
+interface ExpandableSectionProps {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}
+
+const ExpandableSection: React.FC<ExpandableSectionProps> = ({
+  title,
+  defaultOpen = true,
+  children
+}) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-t border-slate-200 first:border-t-0">
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 lg:cursor-default"
+      >
+        <span>{title}</span>
+        <ChevronDown
+          className={`w-4 h-4 transition-transform lg:hidden ${isOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+      <div className={`px-4 pb-4 space-y-3 ${isOpen ? "block" : "hidden"} lg:block`}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+interface GameControlPanelProps {
+  gameState: GameState;
+  isViewingHistory: boolean;
+  onExitHistory: () => void;
+  turn: Color;
+  playerTimes: { w: number; b: number };
+  formatTime: (seconds: number) => string;
+  timeControl: TimeControl;
+  selectedTimeControlOption: string;
+  onTimeModeChange: (mode: 'blitz' | 'rapid' | 'classical') => void;
+  onTimePresetChange: (optionName: string) => void;
+  isTimeControlLocked: boolean;
+  onStartGame: () => void;
+  onPauseGame: () => void;
+  onResumeGame: () => void;
+  onEndGame: () => void;
+  onResetGame: () => void;
+  onOfferDraw: () => void;
+  onResign: () => void;
+  onOpenRules: () => void;
+  onDownloadPgn: () => void;
+  onCopyPgn: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  canOfferDraw: boolean;
+  canResign: boolean;
+  canReset: boolean;
+  moveHistoryCount: number;
+  timeControlOptions: typeof TIME_CONTROL_OPTIONS;
+  moveHistory: Move[];
+  onSelectHistoryMove: (index: number) => void;
+  selectedHistoryMove: Move | null;
+  isAiThinking: boolean;
+}
+
+const GameControlPanel: React.FC<GameControlPanelProps> = ({
+  gameState,
+  isViewingHistory,
+  onExitHistory,
+  turn,
+  playerTimes,
+  formatTime,
+  timeControl,
+  selectedTimeControlOption,
+  onTimeModeChange,
+  onTimePresetChange,
+  isTimeControlLocked,
+  onStartGame,
+  onPauseGame,
+  onResumeGame,
+  onEndGame,
+  onResetGame,
+  onOfferDraw,
+  onResign,
+  onOpenRules,
+  onDownloadPgn,
+  onCopyPgn,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  canOfferDraw,
+  canResign,
+  canReset,
+  moveHistoryCount,
+  timeControlOptions,
+  moveHistory,
+  onSelectHistoryMove,
+  selectedHistoryMove,
+  isAiThinking
+}) => {
+  const statusConfig = isViewingHistory
+    ? { label: "Viewing History", tone: "bg-purple-500" }
+    : gameState === "inactive"
+    ? { label: "Not Started", tone: "bg-gray-500" }
+    : gameState === "active"
+    ? { label: "In Progress", tone: "bg-green-600" }
+    : gameState === "paused"
+    ? { label: "Paused", tone: "bg-yellow-500" }
+    : { label: "Finished", tone: "bg-red-600" };
+
+  const activeTurnLabel = turn === "w" ? "White to move" : "Black to move";
+
+  const actionButtons: Array<{
+    key: string;
+    label: string;
+    onClick: () => void;
+    icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+    className: string;
+    disabled?: boolean;
+    colSpan?: string;
+  }> = [];
+
+  if (gameState === "inactive") {
+    actionButtons.push({
+      key: "start",
+      label: "Start Game",
+      onClick: onStartGame,
+      icon: Play,
+      className: "bg-green-600 hover:bg-green-700 text-white col-span-2"
+    });
+  }
+
+  if (gameState === "active") {
+    actionButtons.push(
+      {
+        key: "pause",
+        label: "Pause",
+        onClick: onPauseGame,
+        icon: Pause,
+        className: "bg-yellow-500 hover:bg-yellow-600 text-white"
+      },
+      {
+        key: "end",
+        label: "End Game",
+        onClick: onEndGame,
+        className: "bg-red-600 hover:bg-red-700 text-white"
+      }
+    );
+  }
+
+  if (gameState === "paused") {
+    actionButtons.push(
+      {
+        key: "resume",
+        label: "Resume",
+        onClick: onResumeGame,
+        icon: Play,
+        className: "bg-green-600 hover:bg-green-700 text-white"
+      },
+      {
+        key: "end",
+        label: "End Game",
+        onClick: onEndGame,
+        className: "bg-red-600 hover:bg-red-700 text-white"
+      }
+    );
+  }
+
+  if (canReset) {
+    actionButtons.push({
+      key: "reset",
+      label: "Reset Game",
+      onClick: onResetGame,
+      className: "bg-slate-100 text-slate-700 hover:bg-slate-200 col-span-2"
+    });
+  }
+
+  const secondaryButtons: Array<{
+    key: string;
+    label: string;
+    onClick: () => void;
+    icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+    className: string;
+    disabled?: boolean;
+  }> = [
+    {
+      key: "offer-draw",
+      label: "Offer Draw",
+      onClick: onOfferDraw,
+      icon: Handshake,
+      className: "bg-blue-100 text-blue-700 hover:bg-blue-200",
+      disabled: !canOfferDraw
+    },
+    {
+      key: "resign",
+      label: "Resign",
+      onClick: onResign,
+      icon: Flag,
+      className: "bg-red-100 text-red-700 hover:bg-red-200",
+      disabled: !canResign
+    }
+  ];
+
+  const buttonBase =
+    "flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed";
+
+  const renderButton = (
+    button: typeof actionButtons[number],
+    index: number
+  ) => {
+    const Icon = button.icon;
+    return (
+      <button
+        key={button.key}
+        onClick={button.onClick}
+        disabled={button.disabled}
+        className={`${buttonBase} ${button.className} ${button.colSpan ?? ""}`}
+      >
+        {Icon && <Icon className="w-4 h-4" />}
+        {button.label}
+      </button>
+    );
+  };
+
+  return (
+    <div className="w-full lg:w-72 order-3 lg:order-1 lg:sticky lg:top-24 lg:col-start-1">
+      <div className="rounded-2xl border border-slate-200 bg-white/90 shadow-xl backdrop-blur-sm overflow-hidden lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+        <div className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span
+              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white ${statusConfig.tone}`}
+            >
+              {statusConfig.label}
+            </span>
+            <span className="text-xs font-medium text-slate-500">{activeTurnLabel}</span>
+          </div>
+
+          {isAiThinking && (
+            <div className="text-xs font-medium text-blue-600">
+              AI is calculating the next move…
+            </div>
+          )}
+
+          {isViewingHistory && (
+            <button
+              onClick={onExitHistory}
+              className="w-full rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            >
+              Return to Current Game
+            </button>
+          )}
+        </div>
+
+        <ExpandableSection title="Players & Clocks" defaultOpen>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div
+              className={`rounded-xl border px-4 py-3 transition ${turn === "b" ? "border-blue-200 bg-blue-50 shadow-sm" : "border-slate-200 bg-slate-50"}`}
+            >
+              <div className="flex items-center justify-between text-sm font-semibold text-slate-700">
+                <span>Black</span>
+                {turn === "b" && <span className="text-xs uppercase text-blue-600">To move</span>}
+              </div>
+              <div className="mt-3 flex items-center gap-2 text-lg font-mono">
+                <Clock className="w-4 h-4 text-slate-500" />
+                <span>{formatTime(playerTimes.b)}</span>
+              </div>
+            </div>
+            <div
+              className={`rounded-xl border px-4 py-3 transition ${turn === "w" ? "border-blue-200 bg-blue-50 shadow-sm" : "border-slate-200 bg-slate-50"}`}
+            >
+              <div className="flex items-center justify-between text-sm font-semibold text-slate-700">
+                <span>White</span>
+                {turn === "w" && <span className="text-xs uppercase text-blue-600">To move</span>}
+              </div>
+              <div className="mt-3 flex items-center gap-2 text-lg font-mono">
+                <Clock className="w-4 h-4 text-slate-500" />
+                <span>{formatTime(playerTimes.w)}</span>
+              </div>
+            </div>
+          </div>
+        </ExpandableSection>
+
+        <ExpandableSection title="Game Actions" defaultOpen>
+          <div className="grid grid-cols-2 gap-2">
+            {actionButtons.map(renderButton)}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {secondaryButtons.map(({ key, label, onClick, icon: Icon, className, disabled }) => (
+              <button
+                key={key}
+                onClick={onClick}
+                disabled={disabled}
+                className={`${buttonBase} ${className}`}
+              >
+                {Icon && <Icon className="w-4 h-4" />}
+                {label}
+              </button>
+            ))}
+          </div>
+        </ExpandableSection>
+
+        <ExpandableSection title="Move Tools" defaultOpen>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={onUndo}
+              disabled={!canUndo}
+              className={`${buttonBase} bg-slate-100 text-slate-700 hover:bg-slate-200`}
+            >
+              <RotateCcw className="w-4 h-4" />
+              Undo
+            </button>
+            <button
+              onClick={onRedo}
+              disabled={!canRedo}
+              className={`${buttonBase} bg-slate-100 text-slate-700 hover:bg-slate-200`}
+            >
+              <RotateCw className="w-4 h-4" />
+              Redo
+            </button>
+          </div>
+        </ExpandableSection>
+
+        <ExpandableSection title="Time Control">
+          <div className="space-y-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">
+                Mode
+              </label>
+              <select
+                value={timeControl.mode}
+                onChange={(event) => onTimeModeChange(event.target.value as 'blitz' | 'rapid' | 'classical')}
+                disabled={isTimeControlLocked}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+              >
+                <option value="blitz">Blitz</option>
+                <option value="rapid">Rapid</option>
+                <option value="classical">Classical</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">
+                Preset
+              </label>
+              <select
+                value={selectedTimeControlOption}
+                onChange={(event) => onTimePresetChange(event.target.value)}
+                disabled={isTimeControlLocked}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+              >
+                {timeControlOptions[timeControl.mode].map(option => (
+                  <option key={option.name} value={option.name}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span>
+                Initial Time: {Math.floor(timeControl.initialTime / 60)}m{" "}
+                {timeControl.initialTime % 60 > 0 ? `${timeControl.initialTime % 60}s` : ""}
+              </span>
+              <span>Increment: {timeControl.increment}s</span>
+            </div>
+          </div>
+        </ExpandableSection>
+
+        <ExpandableSection title="Utilities" defaultOpen={false}>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={onOpenRules}
+              className={`${buttonBase} bg-blue-600 text-white hover:bg-blue-700 col-span-2`}
+            >
+              <Settings className="w-4 h-4" />
+              About & Rules
+            </button>
+            <button
+              onClick={onDownloadPgn}
+              disabled={moveHistoryCount === 0}
+              className={`${buttonBase} bg-purple-600 text-white hover:bg-purple-700 disabled:hover:bg-purple-600`}
+            >
+              <Download className="w-4 h-4" />
+              Export PGN
+            </button>
+            <button
+              onClick={onCopyPgn}
+              disabled={moveHistoryCount === 0}
+              className={`${buttonBase} bg-indigo-600 text-white hover:bg-indigo-700 disabled:hover:bg-indigo-600`}
+            >
+              <CopyIcon className="w-4 h-4" />
+              Copy PGN
+            </button>
+          </div>
+        </ExpandableSection>
+
+        <div className="lg:hidden">
+          <ExpandableSection title="Move History" defaultOpen={false}>
+            {moveHistory.length === 0 ? (
+              <span className="text-sm text-slate-500">No moves yet</span>
+            ) : (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {moveHistory.map((move, index) => (
+                  <button
+                    key={`${move.startPos}-${move.endPos}-${index}`}
+                    onClick={() => onSelectHistoryMove(index)}
+                    className={`flex-shrink-0 rounded-lg px-2 py-1 text-xs font-medium transition-colors ${
+                      selectedHistoryMove === move && isViewingHistory
+                        ? "bg-blue-600 text-white"
+                        : "bg-slate-100 text-slate-700 hover:bg-blue-100"
+                    }`}
+                  >
+                    {Math.floor(index / 2) + 1}.{index % 2 === 0 ? "" : ".."} {move.san}
+                  </button>
+                ))}
+              </div>
+            )}
+          </ExpandableSection>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // Helper to convert moves to simple SAN (basic, no full disambiguation)
@@ -1071,6 +1498,52 @@ const App: React.FC = () => {
     }
   };
 
+  const handleMobileHistoryJump = (index: number) => {
+    const targetMove = moveHistory[index];
+    if (!targetMove) return;
+
+    const boardCopy: Board = INITIAL_BOARD.map(row =>
+      row.map(piece => (piece ? { ...piece } : null))
+    );
+
+    for (let i = 0; i <= index; i++) {
+      const historicalMove = moveHistory[i];
+      const [fromRow, fromCol] = historicalMove.startPos.split(',').map(Number);
+      const [toRow, toCol] = historicalMove.endPos.split(',').map(Number);
+
+      const movingPiece: Piece = {
+        ...historicalMove.piece,
+        ...(historicalMove.promotionPiece ? { type: historicalMove.promotionPiece } : {}),
+        hasMoved: true
+      };
+
+      boardCopy[fromRow][fromCol] = null;
+
+      if (historicalMove.isEnPassant) {
+        const captureRow = historicalMove.piece.color === 'w' ? toRow + 1 : toRow - 1;
+        if (captureRow >= 0 && captureRow < 8) {
+          boardCopy[captureRow][toCol] = null;
+        }
+      }
+
+      boardCopy[toRow][toCol] = movingPiece;
+
+      if (historicalMove.isCastling) {
+        if (toCol === 6) {
+          boardCopy[toRow][5] = boardCopy[toRow][7];
+          boardCopy[toRow][7] = null;
+        } else if (toCol === 2) {
+          boardCopy[toRow][3] = boardCopy[toRow][0];
+          boardCopy[toRow][0] = null;
+        }
+      }
+    }
+
+    const historyTurn: Color = targetMove.piece.color === 'w' ? 'b' : 'w';
+    enterHistoryMode(boardCopy, historyTurn, targetMove);
+    setLastMove({ from: targetMove.startPos, to: targetMove.endPos });
+  };
+
   // AI move execution
   const executeAiMove = useCallback(async () => {
     // Guard: only proceed if it's currently the AI's turn
@@ -1369,6 +1842,63 @@ const App: React.FC = () => {
     return `${m}:${s.toString().padStart(2,'0')}`;
   };
 
+  const handleTimeControlModeChange = (selectedMode: 'blitz' | 'rapid' | 'classical') => {
+    const options = TIME_CONTROL_OPTIONS[selectedMode];
+    const defaultOption = options[1] ?? options[0];
+    if (!defaultOption) return;
+
+    stopTimer();
+    const newTimeControl = {
+      mode: selectedMode,
+      initialTime: defaultOption.initialTime,
+      increment: defaultOption.increment
+    };
+    setTimeControl(newTimeControl);
+    setSelectedTimeControlOption(defaultOption.name);
+    setPlayerTimes({
+      w: defaultOption.initialTime,
+      b: defaultOption.initialTime
+    });
+
+    if (gameState === "active") {
+      timerRef.current = setInterval(() => {
+        setPlayerTimes(prev => ({
+          ...prev,
+          [turn]: Math.max(0, prev[turn] - 1)
+        }));
+      }, 1000);
+    }
+  };
+
+  const handleTimeControlPresetChange = (presetName: string) => {
+    const selectedOption = TIME_CONTROL_OPTIONS[timeControl.mode].find(
+      option => option.name === presetName
+    );
+    if (!selectedOption) return;
+
+    stopTimer();
+    const newTimeControl = {
+      mode: timeControl.mode,
+      initialTime: selectedOption.initialTime,
+      increment: selectedOption.increment
+    };
+    setTimeControl(newTimeControl);
+    setSelectedTimeControlOption(selectedOption.name);
+    setPlayerTimes({
+      w: selectedOption.initialTime,
+      b: selectedOption.initialTime
+    });
+
+    if (gameState === "active") {
+      timerRef.current = setInterval(() => {
+        setPlayerTimes(prev => ({
+          ...prev,
+          [turn]: Math.max(0, prev[turn] - 1)
+        }));
+      }, 1000);
+    }
+  };
+
   // PGN Export helpers (restored)
   const exportToPGN = (): string => {
     const date = new Date();
@@ -1418,6 +1948,13 @@ const App: React.FC = () => {
       const ta = document.createElement('textarea'); ta.value = pgn; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
     }
   };
+
+  const isTimeControlLocked = gameState === 'active' || gameState === 'paused';
+  const canUndoMove = moveHistory.length > 0 && gameState === 'active' && !isViewingHistory && !isAiThinking && !(gameMode === 'human-vs-ai' && turn === aiColor);
+  const canRedoMove = redoHistory.length > 0 && gameState === 'active' && !isViewingHistory && !isAiThinking && !(gameMode === 'human-vs-ai' && turn === aiColor);
+  const canOfferDrawAction = gameState === 'active' && !isViewingHistory;
+  const canResignAction = gameState === 'active' && !isViewingHistory;
+  const canResetGame = gameState !== 'inactive';
 
   const indicatorMode = gameState === 'inactive' ? pendingGameMode : gameMode;
 
@@ -1495,7 +2032,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Desktop and Mobile Layout Container */}
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-center lg:gap-8 lg:py-8">
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[18rem_minmax(0,1fr)_16rem] lg:items-start lg:justify-items-center lg:gap-8 lg:py-8 lg:max-w-6xl lg:mx-auto">
         
         {/* Desktop Control Buttons */}
         <div className="hidden lg:flex absolute top-4 right-4 space-x-2">
@@ -1514,20 +2051,57 @@ const App: React.FC = () => {
           </button>
         </div>
 
+        <GameControlPanel
+          gameState={gameState}
+          isViewingHistory={isViewingHistory}
+          onExitHistory={exitHistoryMode}
+          turn={turn}
+          playerTimes={playerTimes}
+          formatTime={formatTime}
+          timeControl={timeControl}
+          selectedTimeControlOption={selectedTimeControlOption}
+          onTimeModeChange={handleTimeControlModeChange}
+          onTimePresetChange={handleTimeControlPresetChange}
+          isTimeControlLocked={isTimeControlLocked}
+          onStartGame={startGame}
+          onPauseGame={pauseGame}
+          onResumeGame={resumeGame}
+          onEndGame={() => endGame()}
+          onResetGame={resetGame}
+          onOfferDraw={offerDraw}
+          onResign={resign}
+          onOpenRules={() => setShowRulesMenu(true)}
+          onDownloadPgn={downloadPGN}
+          onCopyPgn={copyPGNToClipboard}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={canUndoMove}
+          canRedo={canRedoMove}
+          canOfferDraw={canOfferDrawAction}
+          canResign={canResignAction}
+          canReset={canResetGame}
+          moveHistoryCount={moveHistory.length}
+          timeControlOptions={TIME_CONTROL_OPTIONS}
+          moveHistory={moveHistory}
+          onSelectHistoryMove={handleMobileHistoryJump}
+          selectedHistoryMove={selectedHistoryMove}
+          isAiThinking={isAiThinking}
+        />
+
         {/* Main Game Area */}
-        <div className="flex-1 lg:flex-none lg:order-2 px-4 lg:px-0">
-          <GameSetupControls
-            pendingGameMode={pendingGameMode}
-            pendingAiDifficulty={pendingAiDifficulty}
-            pendingPlayerColor={pendingPlayerColor}
-            engineType={pendingEngineType}
-            isGameRunning={isGameRunning()}
-            onGameModeChange={handleGameModeSelection}
-            onAiDifficultyChange={handleAiDifficultyChange}
-            onPlayerColorChange={handlePlayerColorSelection}
-            onEngineTypeChange={handleEngineTypeChange}
-            onStart={handleStartNewGameRequest}
-          />
+        <div className="flex-1 lg:col-start-2 lg:row-start-1 px-4 lg:px-0 w-full max-w-3xl mx-auto flex flex-col items-center">
+          <div className="w-full max-w-2xl">
+            <GameSetupControls
+              pendingGameMode={pendingGameMode}
+              pendingAiDifficulty={pendingAiDifficulty}
+              pendingPlayerColor={pendingPlayerColor}
+              engineType={pendingEngineType}
+              onGameModeChange={handleGameModeSelection}
+              onAiDifficultyChange={handleAiDifficultyChange}
+              onPlayerColorChange={handlePlayerColorSelection}
+              onEngineTypeChange={handleEngineTypeChange}
+            />
+          </div>
           {/* Captured Pieces - Mobile Compact */}
           <div className="lg:hidden mb-4">
             <div className="flex justify-between items-center bg-white bg-opacity-90 rounded-lg p-3">
@@ -1709,573 +2283,8 @@ const App: React.FC = () => {
           </div>
           </div>
         </div>
-
-        {/* Mobile Bottom Controls */}
-        <div className="lg:hidden p-4 bg-white bg-opacity-90 backdrop-blur-sm">
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            {gameState === "inactive" && (
-              <button
-                onClick={startGame}
-                className="col-span-2 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
-              >
-                Start Game
-              </button>
-            )}
-            
-            {gameState === "active" && (
-              <>
-                <button
-                  onClick={pauseGame}
-                  className="bg-yellow-600 text-white py-3 rounded-lg hover:bg-yellow-700 transition-colors font-medium"
-                >
-                  Pause
-                </button>
-                <button
-                  onClick={() => endGame()}
-                  className="bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition-colors font-medium"
-                >
-                  End Game
-                </button>
-              </>
-            )}
-            
-            {gameState === "paused" && (
-              <>
-                <button
-                  onClick={resumeGame}
-                  className="bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
-                >
-                  Resume
-                </button>
-                <button
-                  onClick={() => endGame()}
-                  className="bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition-colors font-medium"
-                >
-                  End Game
-                </button>
-              </>
-            )}
-            
-            {(gameState === "ended" || gameState === "paused" || gameState === "active") && (
-              <button
-                onClick={resetGame}
-                className="bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors font-medium"
-              >
-                Reset Game
-              </button>
-            )}
-
-            {gameState === "active" && !isViewingHistory && (
-              <>
-                <button
-                  onClick={offerDraw}
-                  className="bg-yellow-600 text-white py-3 rounded-lg hover:bg-yellow-700 transition-colors font-medium"
-                >
-                  Offer Draw
-                </button>
-                <button
-                  onClick={resign}
-                  className="bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition-colors font-medium"
-                >
-                  Resign
-                </button>
-              </>
-            )}
-
-            <button
-              onClick={() => setShowRulesMenu(true)}
-              className="bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              About & Rules
-            </button>
-
-            <div className="flex gap-2">
-              <button
-                onClick={downloadPGN}
-                disabled={moveHistory.length === 0}
-                className="flex-1 bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:hover:bg-purple-600 transition-colors font-medium"
-              >
-                Export PGN
-              </button>
-              <button
-                onClick={copyPGNToClipboard}
-                disabled={moveHistory.length === 0}
-                className="flex-1 bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors font-medium"
-              >
-                Copy PGN
-              </button>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={handleUndo}
-                disabled={moveHistory.length === 0 || gameState !== "active" || isViewingHistory || isAiThinking || (gameMode === 'human-vs-ai' && turn === aiColor)}
-                className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors flex items-center justify-center"
-                title="Undo move"
-              >
-                <RotateCcw className="w-5 h-5" />
-              </button>
-
-              <button
-                onClick={handleRedo}
-                disabled={redoHistory.length === 0 || gameState !== "active" || isViewingHistory || isAiThinking || (gameMode === 'human-vs-ai' && turn === aiColor)}
-                className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:hover:bg-green-600 transition-colors flex items-center justify-center"
-                title="Redo move"
-              >
-                <RotateCw className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
-          {isViewingHistory && (
-            <button
-              onClick={exitHistoryMode}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium mb-4"
-            >
-              Return to Current Game
-            </button>
-          )}
-
-          {/* Mobile Time Control Settings */}
-          <div className="bg-gray-50 rounded-lg p-3 mb-4">
-            <h3 className="text-sm font-semibold mb-2 text-gray-800">Time Control</h3>
-            
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-gray-700">Mode</label>
-                <select 
-                  value={timeControl.mode}
-                  disabled={gameState === "active" || gameState === "paused"}
-                  onChange={(e) => {
-                    const selectedMode = e.target.value as 'blitz' | 'rapid' | 'classical';
-                    const defaultOption = TIME_CONTROL_OPTIONS[selectedMode][1];
-                    const newTimeControl = {
-                      mode: selectedMode,
-                      initialTime: defaultOption.initialTime,
-                      increment: defaultOption.increment
-                    };
-                    
-                    stopTimer();
-                    setTimeControl(newTimeControl);
-                    setSelectedTimeControlOption(defaultOption.name);
-                    setPlayerTimes({
-                      w: defaultOption.initialTime,
-                      b: defaultOption.initialTime
-                    });
-
-                    if (gameState === "active") {
-                      timerRef.current = setInterval(() => {
-                        setPlayerTimes(prev => ({
-                          ...prev,
-                          [turn]: Math.max(0, prev[turn] - 1)
-                        }));
-                      }, 1000);
-                    }
-                  }}
-                  className={`px-2 py-1 border rounded text-xs ${
-                    gameState === "active" || gameState === "paused" 
-                      ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
-                      : ""
-                  }`}
-                >
-                  <option value="blitz">Blitz</option>
-                  <option value="rapid">Rapid</option>
-                  <option value="classical">Classical</option>
-                </select>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-gray-700">Time</label>
-                <select 
-                  value={selectedTimeControlOption}
-                  disabled={gameState === "active" || gameState === "paused"}
-                  onChange={(e) => {
-                    const selectedOption = TIME_CONTROL_OPTIONS[timeControl.mode].find(
-                      option => option.name === e.target.value
-                    );
-                    
-                    if (selectedOption) {
-                      const newTimeControl = {
-                        mode: timeControl.mode,
-                        initialTime: selectedOption.initialTime,
-                        increment: selectedOption.increment
-                      };
-                      
-                      stopTimer();
-                      setTimeControl(newTimeControl);
-                      setSelectedTimeControlOption(selectedOption.name);
-                      setPlayerTimes({
-                        w: selectedOption.initialTime,
-                        b: selectedOption.initialTime
-                      });
-
-                      if (gameState === "active") {
-                                              
-                        timerRef.current = setInterval(() => {
-                          setPlayerTimes(prev => ({
-                            ...prev,
-                            [turn]: Math.max(0, prev[turn] - 1)
-                          }));
-                        }, 1000);
-                      }
-                    }
-                  }}
-                  className={`px-2 py-1 border rounded text-xs ${
-                    gameState === "active" || gameState === "paused" 
-                      ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
-                      : ""
-                  }`}
-                >
-                  {TIME_CONTROL_OPTIONS[timeControl.mode].map(option => (
-                    <option key={option.name} value={option.name}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          {/* Mobile Horizontal Move History */}
-          <div className="bg-gray-50 rounded-lg p-3">
-            <h3 className="text-sm font-semibold mb-2 text-gray-800">Move History</h3>
-            <div className="flex gap-1 overflow-x-auto pb-2">
-              {moveHistory.length === 0 ? (
-                <span className="text-gray-500 text-sm">No moves yet</span>
-              ) : (
-                moveHistory.map((move, index) => {
-                  // Reconstruct the board state up to this move
-                  const boardCopy = INITIAL_BOARD.map(row => [...row]);
-                  for (let i = 0; i <= index; i++) {
-                    const historicalMove = moveHistory[i];
-                    const [fromRow, fromCol] = historicalMove.startPos.split(',').map(Number);
-                    const [toRow, toCol] = historicalMove.endPos.split(',').map(Number);
-                    
-                    boardCopy[toRow][toCol] = { ...historicalMove.piece, hasMoved: true };
-                    boardCopy[fromRow][fromCol] = null;
-                  }
-
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        const historyTurn = move.piece.color === 'w' ? 'b' : 'w';
-                        
-                        enterHistoryMode(boardCopy, historyTurn, move);
-                        setLastMove({
-                          from: move.startPos,
-                          to: move.endPos
-                        });
-                      }}
-                      className={`flex-shrink-0 px-2 py-1 text-xs rounded transition-colors ${
-                        selectedHistoryMove === move && isViewingHistory
-                          ? "bg-blue-500 text-white"
-                          : "bg-white text-gray-700 hover:bg-blue-100"
-                      }`}
-                    >
-                      {Math.floor(index / 2) + 1}.{index % 2 === 0 ? "" : ".."} {move.san}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop Side Panel */}
-        <div className="hidden lg:block w-64 h-[80vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-4 overflow-y-auto lg:order-1">
-          <div className="space-y-4">
-            {/* Game Status */}
-            <div className="text-center">
-
-              <div className={`inline-block px-3 py-1 rounded-lg font-semibold text-white text-sm ${
-                isViewingHistory ? "bg-purple-500" :
-                gameState === "inactive" ? "bg-gray-500" :
-                gameState === "active" ? "bg-green-500" :
-                gameState === "paused" ? "bg-yellow-500" :
-                "bg-red-500"
-              }`}>
-                {isViewingHistory ? "Viewing History" :
-                 gameState === "inactive" ? "Game Not Started" :
-                 gameState === "active" ? "Game Active" :
-                 gameState === "paused" ? "Game Paused" :
-                 "Game Ended"}
-              </div>
-              
-              {isViewingHistory && (
-                <button
-                  onClick={exitHistoryMode}
-                  className="mt-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-xs"
-                >
-                  Return to Current Game
-                </button>
-              )}
-            </div>
-
-            {/* Black Player Section */}
-            <div
-              className={`p-3 rounded-lg transition-all duration-200 flex justify-between items-center ${
-                turn === "b" ? "bg-black/15 scale-105" : ""
-              }`}
-            >
-              <h2 className="text-lg font-semibold">Black Player</h2>
-              <div className="flex items-center space-x-2">
-                <Clock className="w-4 h-4" />
-                <span className="text-base font-mono font-semibold">
-                  {formatTime(playerTimes.b)}
-                </span>
-              </div>
-            </div>
-
-            {/* White Player Section */}
-            <div
-              className={`p-3 rounded-lg transition-all duration-200 flex justify-between items-center ${
-                turn === "w" ? "bg-black/15 scale-105" : ""
-              }`}
-            >
-              <h2 className="text-lg font-semibold">White Player</h2>
-              <div className="flex items-center space-x-2">
-                <Clock className="w-4 h-4" />
-                <span className="text-base font-mono font-semibold">
-                  {formatTime(playerTimes.w)}
-                </span>
-              </div>
-            </div>
-
-            {/* Time Control Section - Desktop Only */}
-            <div className="border-t border-gray-300 pt-4">
-              <div className="flex items-center justify-between mb-4">
-                <label className="text-base font-medium">Time Control Mode</label>
-                <select 
-                  value={timeControl.mode}
-                  disabled={gameState === "active" || gameState === "paused"}
-                  onChange={(e) => {
-                    const selectedMode = e.target.value as 'blitz' | 'rapid' | 'classical';
-                    const defaultOption = TIME_CONTROL_OPTIONS[selectedMode][1];
-                    const newTimeControl = {
-                      mode: selectedMode,
-                      initialTime: defaultOption.initialTime,
-                      increment: defaultOption.increment
-                    };
-                    
-                    stopTimer();
-                    setTimeControl(newTimeControl);
-                    setSelectedTimeControlOption(defaultOption.name);
-                    setPlayerTimes({
-                      w: defaultOption.initialTime,
-                      b: defaultOption.initialTime
-                    });
-
-                    if (gameState === "active") {
-                      timerRef.current = setInterval(() => {
-                        setPlayerTimes(prev => ({
-                          ...prev,
-                          [turn]: Math.max(0, prev[turn] - 1)
-                        }));
-                      }, 1000);
-                    }
-                  }}
-                  className={`px-3 py-2 border rounded text-base ${
-                    gameState === "active" || gameState === "paused" 
-                      ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
-                      : ""
-                  }`}
-                >
-                  <option value="blitz">Blitz</option>
-                  <option value="rapid">Rapid</option>
-                  <option value="classical">Classical</option>
-                </select>
-              </div>
-              
-              <div className="flex items-center justify-between mb-4">
-                <label className="text-base font-medium">Time Control</label>
-                <select 
-                  value={selectedTimeControlOption}
-                  disabled={gameState === "active" || gameState === "paused"}
-                  onChange={(e) => {
-                    const selectedOption = TIME_CONTROL_OPTIONS[timeControl.mode].find(
-                      option => option.name === e.target.value
-                    );
-                    
-                    if (selectedOption) {
-                      const newTimeControl = {
-                        mode: timeControl.mode,
-                        initialTime: selectedOption.initialTime,
-                        increment: selectedOption.increment
-                      };
-                      
-                      stopTimer();
-                      setTimeControl(newTimeControl);
-                      setSelectedTimeControlOption(selectedOption.name);
-                      setPlayerTimes({
-                        w: selectedOption.initialTime,
-                        b: selectedOption.initialTime
-                      });
-
-                      if (gameState === "active") {
-                        timerRef.current = setInterval(() => {
-                          setPlayerTimes(prev => ({
-                            ...prev,
-                            [turn]: Math.max(0, prev[turn] - 1)
-                          }));
-                        }, 1000);
-                      }
-                    }
-                  }}
-                  className={`px-3 py-2 border rounded text-base ${
-                    gameState === "active" || gameState === "paused" 
-                      ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
-                      : ""
-                  }`}
-                >
-                  {TIME_CONTROL_OPTIONS[timeControl.mode].map(option => (
-                    <option key={option.name} value={option.name}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm text-gray-600">
-                  Initial Time: {Math.floor(timeControl.initialTime / 60)} min {timeControl.initialTime % 60 > 0 ? `${timeControl.initialTime % 60}s` : ''}
-                </span>
-                <span className="text-sm text-gray-600">
-                  Increment: {timeControl.increment} sec
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-6 p-6 border-t border-gray-300">
-              <div className="flex gap-4 justify-center">
-                <button
-                  onClick={handleUndo}
-                  disabled={moveHistory.length === 0 || gameState !== "active" || isViewingHistory || isAiThinking || (gameMode === 'human-vs-ai' && turn === aiColor)}
-                  className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors group relative"
-                  title="Undo move"
-                >
-                  <RotateCcw className="w-6 h-6" />
-                  <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm py-1 px-3 rounded -top-10 left-1/2 transform -translate-x-1/2">
-                    Undo move
-                  </span>
-                </button>
-
-                <button
-                  onClick={handleRedo}
-                  disabled={redoHistory.length === 0 || gameState !== "active" || isViewingHistory || isAiThinking || (gameMode === 'human-vs-ai' && turn === aiColor)}
-                  className="w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 disabled:opacity-50 disabled:hover:bg-green-600 transition-colors group relative"
-                  title="Redo move"
-                >
-                  <RotateCw className="w-6 h-6" />
-                  <span className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm py-1 px-3 rounded -top-10 left-1/2 transform -translate-x-1/2">
-                    Redo move
-                  </span>
-                </button>
-              </div>
-
-              {/* Game Control Buttons */}
-              <div className="space-y-2">
-                {gameState === "inactive" && (
-                  <button
-                    onClick={startGame}
-                    className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors text-sm"
-                  >
-                    Start Game
-                  </button>
-                )}
-                
-                {gameState === "active" && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={pauseGame}
-                      className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors text-xs"
-                    >
-                      Pause
-                    </button>
-                    <button
-                      onClick={() => endGame()}
-                      className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
-                    >
-                      End Game
-                    </button>
-                  </div>
-                )}
-                
-                {gameState === "paused" && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={resumeGame}
-                      className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors text-xs"
-                    >
-                      Resume
-                    </button>
-                    <button
-                      onClick={() => endGame()}
-                      className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
-                    >
-                      End Game
-                    </button>
-                  </div>
-                )}
-                
-                {(gameState === "ended" || gameState === "paused" || gameState === "active") && (
-                  <button
-                    onClick={resetGame}
-                    className="w-full bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors text-sm"
-                  >
-                    Reset Game
-                  </button>
-                )}
-
-                {/* Draw and Resignation Buttons */}
-                {gameState === "active" && !isViewingHistory && (
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      onClick={offerDraw}
-                      className="flex-1 bg-yellow-600 text-white py-2 rounded hover:bg-yellow-700 transition-colors text-xs"
-                    >
-                      Offer Draw
-                    </button>
-                    <button
-                      onClick={resign}
-                      className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors text-xs"
-                    >
-                      Resign
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2 p-3 border-t border-gray-300">
-                <button
-                  onClick={() => setShowRulesMenu(true)}
-                  className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors text-sm"
-                >
-                  About & Rules
-                </button>
-                <div className="flex gap-2">
-                  <button
-                    onClick={downloadPGN}
-                    disabled={moveHistory.length === 0}
-                    className="flex-1 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 disabled:opacity-50 disabled:hover:bg-purple-600 transition-colors text-xs"
-                  >
-                    Export PGN
-                  </button>
-                  <button
-                    onClick={copyPGNToClipboard}
-                    disabled={moveHistory.length === 0}
-                    className="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors text-xs"
-                  >
-                    Copy PGN
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Desktop Move History Panel */}
-        <div className="hidden lg:block w-64 h-[80vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-4 lg:order-3">
+        <div className="hidden lg:block w-64 h-[80vh] bg-white bg-opacity-90 rounded-xl shadow-lg backdrop-blur-sm p-4 lg:col-start-3 lg:row-start-1">
           <h3 className="text-lg font-semibold mb-3">Move History</h3>
           <div className="h-[calc(80vh-80px)] overflow-y-auto border border-gray-200 rounded">
             {moveHistory.length === 0 ? (
