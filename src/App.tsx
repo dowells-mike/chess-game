@@ -63,35 +63,35 @@ Switch.displayName = SwitchPrimitives.Root.displayName;
 const BOARD_THEMES: BoardTheme[] = [
   {
     name: "Classic",
-    lightSquare: "bg-gray-200",
-    darkSquare: "bg-gray-600",
-    background: "bg-gray-100",
+    lightSquareColor: "#e5e7eb",
+    darkSquareColor: "#4b5563",
+    backgroundColor: "#f3f4f6",
   },
   {
     name: "Wooden",
-    lightSquare: "bg-[#f0d9b5]",
-    darkSquare: "bg-[#b58863]",
-    background: "bg-[#e7d5b4]",
+    lightSquareColor: "#f0d9b5",
+    darkSquareColor: "#b58863",
+    backgroundColor: "#e7d5b4",
     boardTexture: "wood-texture", // You'll need to add this image
   },
   {
     name: "Marble",
-    lightSquare: "bg-[#f0f0f0]",
-    darkSquare: "bg-[#a0a0a0]",
-    background: "bg-[#e0e0e0]",
+    lightSquareColor: "#f0f0f0",
+    darkSquareColor: "#a0a0a0",
+    backgroundColor: "#e0e0e0",
     boardTexture: "marble-texture",
   },
   {
     name: "Vintage",
-    lightSquare: "bg-[#eeeed2]",
-    darkSquare: "bg-[#769656]",
-    background: "bg-[#dfdfdf]",
+    lightSquareColor: "#eeeed2",
+    darkSquareColor: "#769656",
+    backgroundColor: "#dfdfdf",
   },
   {
     name: "Dark Mode",
-    lightSquare: "bg-gray-700",
-    darkSquare: "bg-gray-900",
-    background: "bg-gray-800",
+    lightSquareColor: "#374151",
+    darkSquareColor: "#111827",
+    backgroundColor: "#1f2937",
   },
 ];
 
@@ -1357,7 +1357,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen ${currentTheme.background}`}>
+    <div className="min-h-screen" style={{ backgroundColor: currentTheme.backgroundColor }}>
       {/* Mobile Header */}
       <div className="lg:hidden flex justify-between items-center p-4 bg-white bg-opacity-90 backdrop-blur-sm">
         <div className="flex items-center space-x-4">
@@ -1556,46 +1556,72 @@ const App: React.FC = () => {
                   isCheck && 
                   piece.color === turn;
 
+                const baseSquareColor = isDark ? currentTheme.darkSquareColor : currentTheme.lightSquareColor;
+                const highlightState: { color: string; pulse?: boolean; opacity?: number } | null = (() => {
+                  if (isKingInCheck) {
+                    return { color: isDark ? '#ef4444' : '#fecaca', pulse: true };
+                  }
+                  if (isAttackableBySelected) {
+                    return { color: isDark ? '#b91c1c' : '#f87171' };
+                  }
+                  if (isSelected) {
+                    return { color: isDark ? '#2563eb' : '#93c5fd' };
+                  }
+                  if (isValidTarget && !isAttackableBySelected) {
+                    return { color: isDark ? '#16a34a' : '#86efac' };
+                  }
+                  if ((isLastMoveFrom || isLastMoveTo) && !isAttackableBySelected) {
+                    return { color: isDark ? '#facc15' : '#fef08a' };
+                  }
+                  if (isUnderAttack) {
+                    return { color: isDark ? '#dc2626' : '#fca5a5' };
+                  }
+                  return null;
+                })();
+                const hoverHighlightColor = isCurrentPlayerPiece ? (isDark ? '#3b82f6' : '#bfdbfe') : null;
+
                 return (
                   <div
                     key={pos}
-                    className={`aspect-square flex items-center justify-center relative cursor-pointer group touch-manipulation
-                      ${isDark ? currentTheme.darkSquare : currentTheme.lightSquare}
-                      ${isUnderAttack ? 
-                        (isDark ? "!bg-red-600" : "!bg-red-300") : ""}
-                      ${isValidTarget && !isAttackableBySelected ? 
-                        (isDark ? "!bg-green-600" : "!bg-green-300") : ""}
-                      ${isSelected ? 
-                        (isDark ? "!bg-blue-600" : "!bg-blue-300") : ""}
-                      ${(isLastMoveFrom || isLastMoveTo) && !isAttackableBySelected ? 
-                        (isDark ? "!bg-yellow-400" : "!bg-yellow-200") : ""}
-                      ${isAttackableBySelected ? 
-                        (isDark ? "!bg-red-700" : "!bg-red-400") : ""}
-                      ${isCurrentPlayerPiece ? 
-                        (isDark ? "hover:!bg-blue-500" : "hover:!bg-blue-200") : ""}
-                      ${isKingInCheck ? 
-                        (isDark ? "!bg-red-500 animate-pulse" : "!bg-red-200 animate-pulse") : ""}
-                      transition-colors duration-300
-                    `}
+                    className="aspect-square flex items-center justify-center relative cursor-pointer group touch-manipulation"
+                    style={{ backgroundColor: baseSquareColor }}
                     onClick={() => handleSquareClick(pos)}
                   >
+                    {highlightState && (
+                      <span
+                        className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${highlightState.pulse ? 'animate-pulse' : ''}`}
+                        style={{ backgroundColor: highlightState.color, opacity: highlightState.opacity ?? 1, zIndex: 20 }}
+                      />
+                    )}
+                    {hoverHighlightColor && (
+                      <span
+                        className="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-200 group-hover:opacity-60"
+                        style={{ backgroundColor: hoverHighlightColor, zIndex: 30 }}
+                      />
+                    )}
                     {piece && (
                       <img
                         src={`/${piece.color}${piece.type.toUpperCase()}.svg`}
                         alt={`${piece.color}${piece.type}`}
-                        className="w-3/4 h-3/4 pointer-events-none"
+                        className="w-3/4 h-3/4 pointer-events-none relative z-40"
                       />
                     )}
                     {/* File and rank labels - responsive sizing */}
                     {colIndex === 0 && (
-                      <span className={`absolute left-0.5 lg:left-1 top-0.5 lg:top-1 text-xs font-semibold
-                        ${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
+                      <span
+                        className={`absolute left-0.5 lg:left-1 top-0.5 lg:top-1 text-xs font-semibold z-30 ${
+                          isDark ? 'text-gray-200' : 'text-gray-600'
+                        }`}
+                      >
                         {8 - rowIndex}
                       </span>
                     )}
                     {rowIndex === 7 && (
-                      <span className={`absolute right-0.5 lg:right-1 bottom-0.5 lg:bottom-1 text-xs font-semibold
-                        ${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
+                      <span
+                        className={`absolute right-0.5 lg:right-1 bottom-0.5 lg:bottom-1 text-xs font-semibold z-30 ${
+                          isDark ? 'text-gray-200' : 'text-gray-600'
+                        }`}
+                      >
                         {String.fromCharCode(97 + colIndex)}
                       </span>
                     )}

@@ -25,9 +25,9 @@ type Board = (Piece | null)[][];
 
 type BoardTheme = {
     name: string;
-    lightSquare: string;
-    darkSquare: string;
-    background: string;
+    lightSquareColor: string;
+    darkSquareColor: string;
+    backgroundColor: string;
     boardTexture?: string;
 };
 

@@ -20,9 +20,9 @@ Switch.displayName = SwitchPrimitives.Root.displayName;
 
 interface BoardTheme {
   name: string;
-  lightSquare: string;
-  darkSquare: string;
-  background: string;
+  lightSquareColor: string;
+  darkSquareColor: string;
+  backgroundColor: string;
   boardTexture?: string;
 }
 
