@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import ChessRulesMenu from './ChessRulesMenu';
+import GameSetupControls from './GameSetupControls';
 import { Clock, Settings, RotateCcw, RotateCw, Play, User, Bot } from "lucide-react";
 import * as SwitchPrimitives from "@radix-ui/react-switch";
 import {
@@ -235,7 +236,6 @@ const App: React.FC = () => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [showRulesMenu, setShowRulesMenu] = useState(false); // New state for rules menu
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [showNewGameModal, setShowNewGameModal] = useState(false);
   const [soundSettings, setSoundSettings] = useState<SoundSettings>({
     masterVolume: 0.5,
     moveVolume: 0.7,
@@ -257,6 +257,9 @@ const App: React.FC = () => {
   const [gameMode, setGameMode] = useState<GameMode>('human-vs-human');
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('medium');
   const [playerColor, setPlayerColor] = useState<Color>('w'); // human player's color
+  const [pendingGameMode, setPendingGameMode] = useState<GameMode>('human-vs-human');
+  const [pendingAiDifficulty, setPendingAiDifficulty] = useState<AIDifficulty>('medium');
+  const [pendingPlayerColor, setPendingPlayerColor] = useState<Color>('w');
   const aiColor: Color = playerColor === 'w' ? 'b' : 'w'; // AI color derived from player color
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [aiMoveTimeout, setAiMoveTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -976,6 +979,9 @@ const App: React.FC = () => {
       w: timeControl.initialTime,
       b: timeControl.initialTime
     });
+    setPendingGameMode(gameMode);
+    setPendingAiDifficulty(aiDifficulty);
+    setPendingPlayerColor(playerColor);
     
     // Play sound
     playTurnSwitchSound();
@@ -1278,10 +1284,23 @@ const App: React.FC = () => {
     setPositionHistory([]);
     setMovesSinceLastCaptureOrPawnMove(0);
     setGameState('active');
+    setIsViewingHistory(false);
+    setSelectedHistoryMove(null);
+    setCurrentGameBoard(INITIAL_BOARD);
+    setCurrentGameTurn('w');
+    setAnimatingPiece(null);
+    setDrawOfferPending(null);
+    setShowDrawOfferModal(false);
     timerRef.current = setInterval(() => {
       setPlayerTimes(prev => ({ ...prev, w: Math.max(0, prev.w - 1) }));
     }, 1000);
-    setShowNewGameModal(false);
+    setPendingGameMode(mode);
+    if (difficulty) {
+      setPendingAiDifficulty(difficulty);
+    }
+    if (playerClr) {
+      setPendingPlayerColor(playerClr);
+    }
     
     // Handle AI first move for when human plays as black
     if (mode === 'human-vs-ai') {
@@ -1293,6 +1312,45 @@ const App: React.FC = () => {
           executeAiMove();
         }, 150);
       }
+    }
+  };
+
+  const isGameRunning = () => gameState === 'active' || gameState === 'paused';
+
+  const handleGameModeSelection = (mode: GameMode) => {
+    setPendingGameMode(mode);
+    if (!isGameRunning() && !isViewingHistory) {
+      if (mode === 'human-vs-ai') {
+        startNewGame(mode, pendingAiDifficulty, pendingPlayerColor);
+      } else {
+        startNewGame(mode);
+      }
+    }
+  };
+
+  const handleAiDifficultyChange = (difficulty: AIDifficulty) => {
+    setPendingAiDifficulty(difficulty);
+    if (pendingGameMode === 'human-vs-ai' && !isGameRunning() && !isViewingHistory) {
+      startNewGame('human-vs-ai', difficulty, pendingPlayerColor);
+    }
+  };
+
+  const handlePlayerColorSelection = (color: Color) => {
+    setPendingPlayerColor(color);
+    if (pendingGameMode === 'human-vs-ai' && !isGameRunning() && !isViewingHistory) {
+      startNewGame('human-vs-ai', pendingAiDifficulty, color);
+    }
+  };
+
+  const handleStartNewGameRequest = () => {
+    if (isGameRunning()) {
+      const confirmRestart = window.confirm('Restart the current game? Ongoing progress will be lost.');
+      if (!confirmRestart) return;
+    }
+    if (pendingGameMode === 'human-vs-ai') {
+      startNewGame('human-vs-ai', pendingAiDifficulty, pendingPlayerColor);
+    } else {
+      startNewGame('human-vs-human');
     }
   };
 
@@ -1356,6 +1414,8 @@ const App: React.FC = () => {
     }
   };
 
+  const indicatorMode = gameState === 'inactive' ? pendingGameMode : gameMode;
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: currentTheme.backgroundColor }}>
       {/* Mobile Header */}
@@ -1377,7 +1437,7 @@ const App: React.FC = () => {
           
           {/* Game Mode Indicator */}
           <div className="flex items-center space-x-1 px-2 py-1 bg-blue-100 rounded-lg">
-            {gameMode === 'human-vs-human' ? (
+            {indicatorMode === 'human-vs-human' ? (
               <>
                 <User className="w-4 h-4 text-blue-600" />
                 <span className="text-xs text-blue-600">vs</span>
@@ -1414,9 +1474,9 @@ const App: React.FC = () => {
         
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => setShowNewGameModal(true)}
+            onClick={handleStartNewGameRequest}
             className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white"
-            title="New Game"
+            title="Start or restart game"
           >
             <Play className="w-5 h-5" />
           </button>
@@ -1435,9 +1495,9 @@ const App: React.FC = () => {
         {/* Desktop Control Buttons */}
         <div className="hidden lg:flex absolute top-4 right-4 space-x-2">
           <button
-            onClick={() => setShowNewGameModal(true)}
+            onClick={handleStartNewGameRequest}
             className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white"
-            title="New Game"
+            title="Start or restart game"
           >
             <Play className="w-6 h-6" />
           </button>
@@ -1451,6 +1511,16 @@ const App: React.FC = () => {
 
         {/* Main Game Area */}
         <div className="flex-1 lg:flex-none lg:order-2 px-4 lg:px-0">
+          <GameSetupControls
+            pendingGameMode={pendingGameMode}
+            pendingAiDifficulty={pendingAiDifficulty}
+            pendingPlayerColor={pendingPlayerColor}
+            isGameRunning={isGameRunning()}
+            onGameModeChange={handleGameModeSelection}
+            onAiDifficultyChange={handleAiDifficultyChange}
+            onPlayerColorChange={handlePlayerColorSelection}
+            onStart={handleStartNewGameRequest}
+          />
           {/* Captured Pieces - Mobile Compact */}
           <div className="lg:hidden mb-4">
             <div className="flex justify-between items-center bg-white bg-opacity-90 rounded-lg p-3">
@@ -2356,98 +2426,6 @@ const App: React.FC = () => {
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* New Game Modal */}
-      {showNewGameModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div 
-            className="absolute inset-0 bg-black opacity-50" 
-            onClick={() => setShowNewGameModal(false)}
-          ></div>
-          <div className="relative bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
-            <h2 className="text-2xl font-bold mb-6 text-center">New Game</h2>
-            
-            {/* Game Mode Selection */}
-            <div className="space-y-4 mb-6">
-              <button
-                onClick={() => startNewGame('human-vs-human')}
-                className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
-              >
-                <div className="flex items-center space-x-2">
-                  <User className="w-6 h-6 text-blue-500" />
-                  <span className="text-gray-400">vs</span>
-                  <User className="w-6 h-6 text-blue-500" />
-                </div>
-                <div className="text-left">
-                  <div className="font-semibold">Human vs Human</div>
-                  <div className="text-sm text-gray-600">Play against another person</div>
-                </div>
-              </button>
-              
-              <div className="border-2 border-gray-200 rounded-lg p-4">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="flex items-center space-x-2">
-                    <User className="w-6 h-6 text-blue-500" />
-                    <span className="text-gray-400">vs</span>
-                    <Bot className="w-6 h-6 text-red-500" />
-                  </div>
-                  <div className="text-left">
-                    <div className="font-semibold">Human vs AI</div>
-                    <div className="text-sm text-gray-600">Play against the computer</div>
-                  </div>
-                </div>
-                
-                {/* AI Difficulty Selection */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2">Difficulty:</label>
-                  <select 
-                    value={aiDifficulty} 
-                    onChange={(e) => setAiDifficulty(e.target.value as AIDifficulty)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
-                  >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                    <option value="expert">Expert</option>
-                  </select>
-                </div>
-                
-                {/* Player Color Selection */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2">You play as:</label>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => setPlayerColor('w')}
-                      className={`flex-1 p-2 rounded-md border ${playerColor === 'w' ? 'bg-blue-100 border-blue-500' : 'border-gray-300'}`}
-                    >
-                      White
-                    </button>
-                    <button
-                      onClick={() => setPlayerColor('b')}
-                      className={`flex-1 p-2 rounded-md border ${playerColor === 'b' ? 'bg-blue-100 border-blue-500' : 'border-gray-300'}`}
-                    >
-                      Black
-                    </button>
-                  </div>
-                </div>
-                <button
-                  onClick={() => startNewGame('human-vs-ai', aiDifficulty, playerColor)}
-                  className="w-full p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  Start AI Game
-                </button>
-              </div>
-            </div>
-            
-            <button
-              onClick={() => setShowNewGameModal(false)}
-              className="w-full p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Cancel
-            </button>
           </div>
         </div>
       )}
