@@ -6,10 +6,12 @@ interface GameSetupControlsProps {
   pendingGameMode: GameMode;
   pendingAiDifficulty: AIDifficulty;
   pendingPlayerColor: Color;
+  engineType: "basic" | "stockfish";
   isGameRunning: boolean;
   onGameModeChange: (mode: GameMode) => void;
   onAiDifficultyChange: (difficulty: AIDifficulty) => void;
   onPlayerColorChange: (color: Color) => void;
+  onEngineTypeChange: (engine: "basic" | "stockfish") => void;
   onStart: () => void;
 }
 
@@ -22,10 +24,12 @@ const GameSetupControls: React.FC<GameSetupControlsProps> = ({
   pendingGameMode,
   pendingAiDifficulty,
   pendingPlayerColor,
+  engineType,
   isGameRunning,
   onGameModeChange,
   onAiDifficultyChange,
   onPlayerColorChange,
+  onEngineTypeChange,
   onStart,
 }) => {
   const buttonBase =
@@ -88,6 +92,22 @@ const GameSetupControls: React.FC<GameSetupControlsProps> = ({
                   <option value="medium">Medium</option>
                   <option value="hard">Hard</option>
                   <option value="expert">Expert</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <span className="text-xs uppercase tracking-wide text-gray-500">
+                  Engine
+                </span>
+                <select
+                  value={engineType}
+                  onChange={(event) =>
+                    onEngineTypeChange(event.target.value as "basic" | "stockfish")
+                  }
+                  className="mt-1 px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                >
+                  <option value="basic">Basic (Built-in)</option>
+                  <option value="stockfish">Stockfish</option>
                 </select>
               </div>
 

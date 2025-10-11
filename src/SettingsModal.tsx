@@ -36,8 +36,6 @@ interface SettingsModalProps {
   boardThemes: BoardTheme[];
   showThreats: boolean;
   onShowThreatsChange: (show: boolean) => void;
-  engineType: 'basic' | 'stockfish';
-  onEngineTypeChange: (engine: 'basic' | 'stockfish') => void;
 }
 
 export interface SoundSettings {
@@ -58,9 +56,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onThemeChange,
   boardThemes,
   showThreats,
-  onShowThreatsChange,
-  engineType,
-  onEngineTypeChange
+  onShowThreatsChange
 }) => {
   const [settings, setSettings] = useState<SoundSettings>(initialSettings);
   const [activeTab, setActiveTab] = useState<'audio' | 'display'>('audio');
@@ -223,20 +219,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                   </option>
                 ))}
               </select>
-            </div>
-
-            {/* Engine Selection */}
-            <div className="mb-4">
-              <label className="block text-sm lg:text-base font-medium mb-2">Engine</label>
-              <select
-                value={engineType}
-                onChange={(e) => onEngineTypeChange(e.target.value as any)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="basic">Basic (Built-in)</option>
-                <option value="stockfish">Stockfish</option>
-              </select>
-              <p className="text-xs text-gray-500 mt-1">Stockfish is stronger but may use more CPU.</p>
             </div>
 
             {/* Show Threats Toggle */}

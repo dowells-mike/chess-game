@@ -264,6 +264,7 @@ const App: React.FC = () => {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [aiMoveTimeout, setAiMoveTimeout] = useState<NodeJS.Timeout | null>(null);
   const [engineType, setEngineType] = useState<'basic' | 'stockfish'>('basic');
+  const [pendingEngineType, setPendingEngineType] = useState<'basic' | 'stockfish'>('basic');
 
   // Background music management
   const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
@@ -285,6 +286,10 @@ const App: React.FC = () => {
       document.removeEventListener('keydown', handleUserInteraction);
     };
   }, []);
+
+  useEffect(() => {
+    setPendingEngineType(engineType);
+  }, [engineType]);
 
   useEffect(() => {
     if (!backgroundMusicRef.current) {
@@ -1258,11 +1263,17 @@ const App: React.FC = () => {
     setSelectedPos(null);
   };
 
-  const startNewGame = (mode: GameMode, difficulty?: AIDifficulty, playerClr?: Color) => {
+  const startNewGame = (
+    mode: GameMode,
+    difficulty?: AIDifficulty,
+    playerClr?: Color,
+    engine?: 'basic' | 'stockfish'
+  ) => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     setGameMode(mode);
     if (difficulty) setAiDifficulty(difficulty);
     if (playerClr) setPlayerColor(playerClr);
+    if (engine) setEngineType(engine);
     setBoard(INITIAL_BOARD);
     setTurn('w');
     setSelectedPos(null);
@@ -1301,6 +1312,9 @@ const App: React.FC = () => {
     if (playerClr) {
       setPendingPlayerColor(playerClr);
     }
+    if (engine) {
+      setPendingEngineType(engine);
+    }
     
     // Handle AI first move for when human plays as black
     if (mode === 'human-vs-ai') {
@@ -1319,27 +1333,18 @@ const App: React.FC = () => {
 
   const handleGameModeSelection = (mode: GameMode) => {
     setPendingGameMode(mode);
-    if (!isGameRunning() && !isViewingHistory) {
-      if (mode === 'human-vs-ai') {
-        startNewGame(mode, pendingAiDifficulty, pendingPlayerColor);
-      } else {
-        startNewGame(mode);
-      }
-    }
   };
 
   const handleAiDifficultyChange = (difficulty: AIDifficulty) => {
     setPendingAiDifficulty(difficulty);
-    if (pendingGameMode === 'human-vs-ai' && !isGameRunning() && !isViewingHistory) {
-      startNewGame('human-vs-ai', difficulty, pendingPlayerColor);
-    }
+  };
+
+  const handleEngineTypeChange = (engine: 'basic' | 'stockfish') => {
+    setPendingEngineType(engine);
   };
 
   const handlePlayerColorSelection = (color: Color) => {
     setPendingPlayerColor(color);
-    if (pendingGameMode === 'human-vs-ai' && !isGameRunning() && !isViewingHistory) {
-      startNewGame('human-vs-ai', pendingAiDifficulty, color);
-    }
   };
 
   const handleStartNewGameRequest = () => {
@@ -1348,7 +1353,7 @@ const App: React.FC = () => {
       if (!confirmRestart) return;
     }
     if (pendingGameMode === 'human-vs-ai') {
-      startNewGame('human-vs-ai', pendingAiDifficulty, pendingPlayerColor);
+      startNewGame('human-vs-ai', pendingAiDifficulty, pendingPlayerColor, pendingEngineType);
     } else {
       startNewGame('human-vs-human');
     }
@@ -1515,10 +1520,12 @@ const App: React.FC = () => {
             pendingGameMode={pendingGameMode}
             pendingAiDifficulty={pendingAiDifficulty}
             pendingPlayerColor={pendingPlayerColor}
+            engineType={pendingEngineType}
             isGameRunning={isGameRunning()}
             onGameModeChange={handleGameModeSelection}
             onAiDifficultyChange={handleAiDifficultyChange}
             onPlayerColorChange={handlePlayerColorSelection}
+            onEngineTypeChange={handleEngineTypeChange}
             onStart={handleStartNewGameRequest}
           />
           {/* Captured Pieces - Mobile Compact */}
@@ -2441,8 +2448,6 @@ const App: React.FC = () => {
         boardThemes={BOARD_THEMES}
         showThreats={showThreats}
         onShowThreatsChange={setShowThreats}
-        engineType={engineType}
-        onEngineTypeChange={setEngineType}
       />
 
       {/* Rules Modal */}
